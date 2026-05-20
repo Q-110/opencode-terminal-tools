@@ -1,0 +1,11 @@
+<idea-plugin>
+    <id>com.example.opencodelinks</id>
+    <name>Opencode Short File Links</name>
+    <vendor>Local</vendor>
+
+    <depends>com.intellij.modules.platform</depends>
+
+    <extensions defaultExtensionNs="com.intellij">
+        <consoleFilterProvider implementation="com.example.opencodelinks.OpencodeShortFileFilterProvider"/>
+    </extensions>
+</idea-plugin>
