@@ -1,4 +1,4 @@
-package com.example.opencodelinks
+package com.example.consolelinks
 
 import com.intellij.execution.filters.HyperlinkInfoBase
 import com.intellij.openapi.ide.CopyPasteManager

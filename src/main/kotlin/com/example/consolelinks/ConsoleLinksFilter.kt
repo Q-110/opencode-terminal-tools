@@ -1,4 +1,4 @@
-package com.example.opencodelinks
+package com.example.consolelinks
 
 import com.intellij.execution.filters.Filter
 import com.intellij.openapi.application.ReadAction
@@ -8,7 +8,7 @@ import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.psi.search.FilenameIndex
 import com.intellij.psi.search.GlobalSearchScope
 
-internal class OpencodeShortFileFilter(
+internal class ConsoleLinksFilter(
     private val project: Project
 ) : Filter {
     private val recentFilePathsByName = LinkedHashMap<String, String>()
@@ -34,7 +34,7 @@ internal class OpencodeShortFileFilter(
             items += Filter.ResultItem(
                 baseOffset + match.range.first,
                 baseOffset + match.range.last + 1,
-                ShortFileHyperlinkInfo(
+                FileReferenceHyperlinkInfo(
                     project,
                     files,
                     fileName,

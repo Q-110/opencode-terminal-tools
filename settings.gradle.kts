@@ -28,4 +28,4 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "opencode-short-file-links"
+rootProject.name = "console-links-plugin"

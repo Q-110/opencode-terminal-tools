@@ -1,4 +1,4 @@
-package com.example.opencodelinks
+package com.example.consolelinks
 
 import com.intellij.execution.filters.HyperlinkInfo
 import com.intellij.openapi.editor.ScrollType
@@ -7,7 +7,7 @@ import com.intellij.openapi.fileEditor.OpenFileDescriptor
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.vfs.VirtualFile
 
-internal class ShortFileHyperlinkInfo(
+internal class FileReferenceHyperlinkInfo(
     private val project: Project,
     private val files: List<VirtualFile>,
     private val fileName: String,

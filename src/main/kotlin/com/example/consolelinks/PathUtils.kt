@@ -1,4 +1,4 @@
-package com.example.opencodelinks
+package com.example.consolelinks
 
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.roots.ProjectRootManager

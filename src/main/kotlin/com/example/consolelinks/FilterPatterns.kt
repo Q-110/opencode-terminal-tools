@@ -1,4 +1,4 @@
-package com.example.opencodelinks
+package com.example.consolelinks
 
 internal object FilterPatterns {
     private const val SUPPORTED_EXTENSIONS = "java|kt|kts|js|jsx|ts|tsx|vue|xml|html|css|scss|yml|yaml|properties|sql|md"
