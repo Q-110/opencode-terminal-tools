@@ -3,10 +3,11 @@ package com.example.opencodelinks
 import com.intellij.execution.filters.ConsoleFilterProvider
 import com.intellij.execution.filters.Filter
 import com.intellij.execution.filters.HyperlinkInfo
-import com.intellij.openapi.editor.ScrollType
 import com.intellij.openapi.application.ReadAction
+import com.intellij.openapi.editor.ScrollType
 import com.intellij.openapi.fileEditor.FileEditorManager
 import com.intellij.openapi.fileEditor.OpenFileDescriptor
+import com.intellij.openapi.ide.CopyPasteManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.roots.ProjectRootManager
 import com.intellij.openapi.ui.DialogWrapper
@@ -41,11 +42,21 @@ private class OpencodeShortFileFilter(
     private val fileRefPattern = Regex(
         """(?<![\\/A-Za-z0-9_.$-])($pathPattern|$fileNamePattern)(?::(\d+)(?:-(\d+))?)?(?![\d\w.$-])"""
     )
+    private val copyPatterns = listOf(
+        Regex("""\{\{[^{}\r\n]*[A-Za-z_$][^{}\r\n]*}}"""),
+        Regex("""\[\[[^\r\n|]+]]"""),
+        Regex("""\[[^\r\n|]*"[^"\r\n]+"[^\r\n|]*]"""),
+        Regex("""(?<![\w$])\$?[A-Za-z_$][A-Za-z0-9_$]*\([^()\r\n]*\)"""),
+        Regex("""(?<![\w$])/?[A-Za-z0-9_$.-]+(?:/[A-Za-z0-9_$?=&.-]+)+(?![\w$])"""),
+        Regex("""(?<![\w$])\$?[A-Za-z_$][A-Za-z0-9_$]*(?:\.[A-Za-z_$][A-Za-z0-9_$]*|\[[A-Za-z_$][A-Za-z0-9_$.]*])+(?![\w$])"""),
+        Regex("""(?<![\w$])(?:null|NaN|true|false)(?![\w$])""")
+    )
 
     override fun applyFilter(line: String, entireLength: Int): Filter.Result? {
         rememberPathReferences(line)
         val baseOffset = entireLength - line.length
         val items = mutableListOf<Filter.ResultItem>()
+        val fileLinkRanges = mutableListOf<IntRange>()
 
         for (match in fileRefPattern.findAll(line)) {
             val reference = normalizePath(match.groupValues[1])
@@ -57,6 +68,7 @@ private class OpencodeShortFileFilter(
             val files = findProjectFiles(fileName, requestedPath)
             if (files.isEmpty()) continue
 
+            fileLinkRanges += match.range
             items += Filter.ResultItem(
                 baseOffset + match.range.first,
                 baseOffset + match.range.last + 1,
@@ -70,6 +82,14 @@ private class OpencodeShortFileFilter(
                     endLineNumber,
                     recentFilePathsByName.toMap()
                 )
+            )
+        }
+
+        for (match in findCopyMatches(line, fileLinkRanges)) {
+            items += Filter.ResultItem(
+                baseOffset + match.range.first,
+                baseOffset + match.range.last + 1,
+                CopyTextHyperlinkInfo(project, match.text)
             )
         }
 
@@ -101,7 +121,31 @@ private class OpencodeShortFileFilter(
             recentFilePathsByName.remove(firstKey)
         }
     }
+
+    private fun findCopyMatches(line: String, blockedRanges: List<IntRange>): List<CopyMatch> {
+        val usedRanges = blockedRanges.toMutableList()
+        val matches = mutableListOf<CopyMatch>()
+
+        for (pattern in copyPatterns) {
+            for (match in pattern.findAll(line)) {
+                if (rangesOverlap(match.range, usedRanges)) continue
+
+                val text = match.value.trim()
+                if (text.isEmpty() || isCopyNoise(text)) continue
+
+                usedRanges += match.range
+                matches += CopyMatch(match.range, text)
+            }
+        }
+
+        return matches.sortedBy { it.range.first }
+    }
 }
+
+private data class CopyMatch(
+    val range: IntRange,
+    val text: String
+)
 
 private class ShortFileHyperlinkInfo(
     private val project: Project,
@@ -184,6 +228,16 @@ private class ShortFileHyperlinkInfo(
     }
 }
 
+private class CopyTextHyperlinkInfo(
+    private val project: Project,
+    private val text: String
+) : HyperlinkInfo {
+    override fun navigate(project: Project) {
+        CopyPasteManager.copyTextToClipboard(text)
+        WindowManager.getInstance().getStatusBar(this.project)?.setInfo("已复制: ${shortStatusText(text)}")
+    }
+}
+
 private class FileChoiceDialog(
     private val project: Project,
     private val files: List<VirtualFile>
@@ -234,6 +288,18 @@ private fun pathMatches(project: Project, file: VirtualFile, path: String): Bool
 
 private fun isPathReference(reference: String): Boolean {
     return reference.contains('/')
+}
+
+private fun rangesOverlap(range: IntRange, ranges: List<IntRange>): Boolean {
+    return ranges.any { range.first <= it.last && range.last >= it.first }
+}
+
+private fun isCopyNoise(text: String): Boolean {
+    return text.all { it == '_' || it == '-' || it == '.' || it == '/' || it.isDigit() } && text.none { it.isDigit() }
+}
+
+private fun shortStatusText(text: String): String {
+    return if (text.length > 80) text.take(77) + "..." else text
 }
 
 private fun normalizePath(path: String): String {
