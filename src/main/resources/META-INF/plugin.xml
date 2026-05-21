@@ -6,6 +6,12 @@
     <depends>com.intellij.modules.platform</depends>
 
     <extensions defaultExtensionNs="com.intellij">
+        <applicationService serviceImplementation="com.example.consolelinks.ConsoleLinksSettings"/>
+        <applicationConfigurable
+            parentId="tools"
+            instance="com.example.consolelinks.ConsoleLinksConfigurable"
+            id="com.example.consolelinks.ConsoleLinksConfigurable"
+            displayName="Console Links"/>
         <consoleFilterProvider implementation="com.example.consolelinks.ConsoleLinksFilterProvider"/>
     </extensions>
 </idea-plugin>

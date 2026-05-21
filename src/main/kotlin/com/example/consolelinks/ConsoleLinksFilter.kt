@@ -19,53 +19,64 @@ internal class ConsoleLinksFilter(
     private val copyTextAttributes = TextAttributes()
 
     override fun applyFilter(line: String, entireLength: Int): Filter.Result? {
-        // 先缓存本行里的路径引用，后续同名文件消歧时可以使用。
-        rememberPathReferences(line)
+        val settings = ConsoleLinksSettings.getInstance().getState()
+        if (!settings.fileLinksEnabled && !settings.copyLinksEnabled) {
+            return null
+        }
+
+        if (settings.fileLinksEnabled) {
+            // 先缓存本行里的路径引用，后续同名文件消歧时可以使用。
+            rememberPathReferences(line)
+        }
 
         // entireLength 是控制台截至当前行末尾的总长度，减去当前行长度即可得到本行起始偏移。
         val baseOffset = entireLength - line.length
         val items = mutableListOf<Filter.ResultItem>()
         val fileLinkRanges = mutableListOf<IntRange>()
 
-        // 第一轮优先识别文件引用，因为文件跳转的优先级高于点击复制。
-        for (match in FilterPatterns.fileRefPattern.findAll(line)) {
-            val reference = normalizePath(match.groupValues[1])
-            val fileName = reference.substringAfterLast('/')
-            val requestedPath = if (isPathReference(reference)) reference else null
-            val hasLineNumber = match.groupValues[2].isNotEmpty()
-            val lineNumber = match.groupValues[2].toIntOrNull() ?: 1
-            val endLineNumber = match.groupValues[3].toIntOrNull()
-            val files = findProjectFiles(fileName, requestedPath)
-            if (files.isEmpty()) continue
+        if (settings.fileLinksEnabled) {
+            // 第一轮优先识别文件引用，因为文件跳转的优先级高于点击复制。
+            for (match in FilterPatterns.fileRefPattern.findAll(line)) {
+                val reference = normalizePath(match.groupValues[1])
+                val fileName = reference.substringAfterLast('/')
+                val requestedPath = if (isPathReference(reference)) reference else null
+                val hasLineNumber = match.groupValues[2].isNotEmpty()
+                val lineNumber = match.groupValues[2].toIntOrNull() ?: 1
+                val endLineNumber = match.groupValues[3].toIntOrNull()
+                val files = findProjectFiles(fileName, requestedPath)
+                if (files.isEmpty()) continue
 
-            // 记录文件链接范围，避免同一段文本又被复制规则重复命中。
-            fileLinkRanges += match.range
-            items += Filter.ResultItem(
-                baseOffset + match.range.first,
-                baseOffset + match.range.last + 1,
-                FileReferenceHyperlinkInfo(
-                    project,
-                    files,
-                    fileName,
-                    requestedPath,
-                    hasLineNumber,
-                    lineNumber,
-                    endLineNumber,
-                    recentFilePathsByName.toMap()
+                // 记录文件链接范围，避免同一段文本又被复制规则重复命中。
+                fileLinkRanges += match.range
+                items += Filter.ResultItem(
+                    baseOffset + match.range.first,
+                    baseOffset + match.range.last + 1,
+                    FileReferenceHyperlinkInfo(
+                        project,
+                        files,
+                        fileName,
+                        requestedPath,
+                        hasLineNumber,
+                        lineNumber,
+                        endLineNumber,
+                        recentFilePathsByName.toMap()
+                    )
                 )
-            )
+            }
         }
 
-        // 第二轮识别可复制文本，并跳过已经被文件链接占用的范围。
-        for (match in findCopyMatches(line, fileLinkRanges)) {
-            items += Filter.ResultItem(
-                baseOffset + match.range.first,
-                baseOffset + match.range.last + 1,
-                CopyTextHyperlinkInfo(project, match.text),
-                copyTextAttributes,
-                copyTextAttributes,
-                copyTextAttributes
-            )
+        if (settings.copyLinksEnabled) {
+            // 第二轮识别可复制文本，并跳过已经被文件链接占用的范围。
+            for (match in findCopyMatches(line, fileLinkRanges)) {
+                items += Filter.ResultItem(
+                    baseOffset + match.range.first,
+                    baseOffset + match.range.last + 1,
+                    CopyTextHyperlinkInfo(project, match.text),
+                    copyTextAttributes,
+                    copyTextAttributes,
+                    copyTextAttributes
+                )
+            }
         }
 
         return if (items.isEmpty()) null else Filter.Result(items)

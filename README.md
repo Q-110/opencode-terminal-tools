@@ -9,6 +9,7 @@ IntelliJ IDEA 插件，将终端/控制台输出中的文件引用（如 `FileNa
 - **行范围支持**：支持 `FileName.java:10-20` 和 `src/main/java/FileName.java:10-20` 格式，点击后选中指定行范围
 - **路径支持**：支持短文件名、相对路径、Windows 绝对路径、Unix 绝对路径
 - **点击复制**：支持点击复制终端/控制台输出中的文本片段，例如结构化代码片段、普通英文标识符和普通数字
+- **功能开关**：可在 Settings → Tools → Console Links 中分别开启或关闭文件跳转链接、点击复制链接
 - **支持 17 种文件类型**：java, kt, kts, js, jsx, ts, tsx, vue, xml, html, css, scss, yml, yaml, properties, sql, md
 - **零侵入**：纯 IDEA 端实现，不修改命令行工具，不影响终端流程
 
@@ -59,6 +60,7 @@ NaN
 3. 执行 Gradle 任务 `runIde` 启动沙盒 IDE，或执行 `buildPlugin` 生成插件包后手动安装
 4. 在沙盒 IDE 中打开目标项目，并在终端/控制台中运行需要观察输出的命令
 5. 输出中出现 `FileName.ext:line` 或路径引用时，点击即可跳转
+6. 如需调整功能开关，可进入 Settings → Tools → Console Links 分别开启或关闭文件跳转链接、点击复制链接
 
 ## 技术栈
 
