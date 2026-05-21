@@ -4,7 +4,7 @@ plugins {
 }
 
 group = "io.github.q110"
-version = "1.3.0"
+version = "1.4.2"
 
 kotlin {
     jvmToolchain(17)
@@ -28,11 +28,7 @@ intellijPlatform {
         """.trimIndent()
         changeNotes = """
             <ul>
-              <li>恢复宽泛复制匹配，普通英文标识符和普通数字也可点击复制。</li>
-              <li>复制链接不添加额外视觉样式，尽量保持终端原始显示效果。</li>
-              <li>保持文件跳转链接优先，文件引用仍执行跳转。</li>
-              <li>拆分内部实现结构，降低后续维护成本。</li>
-              <li>更新 README，说明当前复制匹配范围和样式行为。</li>
+              <li>内容区固定 64 x 28</li>
             </ul>
         """.trimIndent()
 
