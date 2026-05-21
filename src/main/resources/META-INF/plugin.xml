@@ -1,7 +1,7 @@
 <idea-plugin>
-    <id>com.example.opencodelinks</id>
+    <id>io.github.q110.opencodelinks</id>
     <name>Opencode Short File Links</name>
-    <vendor>Local</vendor>
+    <vendor>Q-110</vendor>
 
     <depends>com.intellij.modules.platform</depends>
 

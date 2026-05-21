@@ -3,7 +3,7 @@ plugins {
     id("org.jetbrains.intellij.platform") version "2.12.0"
 }
 
-group = "com.example"
+group = "io.github.q110"
 version = "0.1.0"
 
 kotlin {
@@ -12,13 +12,13 @@ kotlin {
 
 dependencies {
     intellijPlatform {
-        local("E:/IntelliJ IDEA 2025.3.4")
+        local(providers.gradleProperty("localIdePath").get())
     }
 }
 
 intellijPlatform {
     pluginConfiguration {
-        id = "com.example.opencodelinks"
+        id = "io.github.q110.opencodelinks"
         name = "Opencode Short File Links"
         version = project.version.toString()
 

@@ -36,11 +36,10 @@ private class OpencodeShortFileFilter(
 ) : Filter {
     private val recentFilePathsByName = LinkedHashMap<String, String>()
     private val supportedExtensions = "java|kt|kts|js|jsx|ts|tsx|vue|xml|html|css|scss|yml|yaml|properties|sql|md"
+    private val fileNamePattern = """[A-Za-z_$][A-Za-z0-9_.$-]*\.(?:$supportedExtensions)"""
+    private val pathPattern = """(?:(?:[A-Za-z]:)?[\\/]|\.{1,2}[\\/])?[A-Za-z0-9_.$-]+(?:[\\/][A-Za-z0-9_.$-]+)+\.(?:$supportedExtensions)"""
     private val fileRefPattern = Regex(
-        """(?<![\\/A-Za-z0-9_.$-])([A-Za-z_$][A-Za-z0-9_$-]*\.(?:$supportedExtensions))(?::(\d+)(?:-(\d+))?)?(?![\d\w.$-])"""
-    )
-    private val pathPattern = Regex(
-        """(?:[A-Za-z]:)?[A-Za-z0-9_.$-]+(?:[\\/][A-Za-z0-9_.$-]+)+\.(?:$supportedExtensions)"""
+        """(?<![\\/A-Za-z0-9_.$-])($pathPattern|$fileNamePattern)(?::(\d+)(?:-(\d+))?)?(?![\d\w.$-])"""
     )
 
     override fun applyFilter(line: String, entireLength: Int): Filter.Result? {
@@ -49,35 +48,50 @@ private class OpencodeShortFileFilter(
         val items = mutableListOf<Filter.ResultItem>()
 
         for (match in fileRefPattern.findAll(line)) {
-            val fileName = match.groupValues[1]
+            val reference = normalizePath(match.groupValues[1])
+            val fileName = reference.substringAfterLast('/')
+            val requestedPath = if (isPathReference(reference)) reference else null
             val hasLineNumber = match.groupValues[2].isNotEmpty()
             val lineNumber = match.groupValues[2].toIntOrNull() ?: 1
             val endLineNumber = match.groupValues[3].toIntOrNull()
-            val files = findProjectFiles(fileName)
+            val files = findProjectFiles(fileName, requestedPath)
             if (files.isEmpty()) continue
 
             items += Filter.ResultItem(
                 baseOffset + match.range.first,
                 baseOffset + match.range.last + 1,
-                ShortFileHyperlinkInfo(project, files, fileName, hasLineNumber, lineNumber, endLineNumber, recentFilePathsByName)
+                ShortFileHyperlinkInfo(
+                    project,
+                    files,
+                    fileName,
+                    requestedPath,
+                    hasLineNumber,
+                    lineNumber,
+                    endLineNumber,
+                    recentFilePathsByName.toMap()
+                )
             )
         }
 
         return if (items.isEmpty()) null else Filter.Result(items)
     }
 
-    private fun findProjectFiles(fileName: String): List<VirtualFile> {
+    private fun findProjectFiles(fileName: String, requestedPath: String?): List<VirtualFile> {
         return ReadAction.compute<List<VirtualFile>, RuntimeException> {
-            FilenameIndex
+            val files = FilenameIndex
                 .getVirtualFilesByName(fileName, GlobalSearchScope.projectScope(project))
                 .filter { it.isValid && !it.isDirectory }
                 .sortedBy { displayPath(project, it) }
+
+            if (requestedPath == null) files else files.filter { pathMatches(project, it, requestedPath) }
         }
     }
 
     private fun rememberPathReferences(line: String) {
-        for (match in pathPattern.findAll(line)) {
-            val path = normalizePath(match.value)
+        for (match in fileRefPattern.findAll(line)) {
+            val path = normalizePath(match.groupValues[1])
+            if (!isPathReference(path)) continue
+
             val fileName = path.substringAfterLast('/')
             recentFilePathsByName[fileName] = path
         }
@@ -93,6 +107,7 @@ private class ShortFileHyperlinkInfo(
     private val project: Project,
     private val files: List<VirtualFile>,
     private val fileName: String,
+    private val requestedPath: String?,
     private val hasLineNumber: Boolean,
     private val lineNumber: Int,
     private val endLineNumber: Int?,
@@ -101,8 +116,9 @@ private class ShortFileHyperlinkInfo(
     override fun navigate(project: Project) {
         val target = chooseBestFile() ?: chooseFile()
         if (target != null) {
+            val descriptorLine = if (hasLineNumber) (lineNumber - 1).coerceAtLeast(0) else 0
             val editor = FileEditorManager.getInstance(this.project).openTextEditor(
-                OpenFileDescriptor(this.project, target, lineNumber - 1, 0),
+                OpenFileDescriptor(this.project, target, descriptorLine, 0),
                 true
             )
 
@@ -129,17 +145,24 @@ private class ShortFileHyperlinkInfo(
     private fun chooseBestFile(): VirtualFile? {
         if (files.size == 1) return files.first()
 
+        if (requestedPath != null) {
+            findByPathSuffix(requestedPath)?.let { return it }
+        }
+
         val recentPath = recentFilePathsByName[fileName]
         if (recentPath != null) {
             findByPathSuffix(recentPath)?.let { return it }
         }
 
-        return files.maxWithOrNull(compareBy<VirtualFile> { scoreFile(it) }.thenByDescending { -displayPath(project, it).length })
+        val scoredFiles = files.groupBy { scoreFile(it) }
+        val bestScore = scoredFiles.keys.maxOrNull() ?: return null
+        val bestFiles = scoredFiles[bestScore].orEmpty()
+        return if (bestFiles.size == 1) bestFiles.first() else null
     }
 
     private fun findByPathSuffix(path: String): VirtualFile? {
         return files.firstOrNull {
-            normalizePath(displayPath(project, it)).endsWith(path) || normalizePath(it.path).endsWith(path)
+            pathMatches(project, it, path)
         }
     }
 
@@ -201,6 +224,16 @@ private fun displayPath(project: Project, file: VirtualFile): String {
 
     val projectBasePath = project.basePath ?: return file.path
     return file.path.removePrefix(projectBasePath.replace('\\', '/') + "/")
+}
+
+private fun pathMatches(project: Project, file: VirtualFile, path: String): Boolean {
+    val normalizedPath = normalizePath(path)
+    return normalizePath(displayPath(project, file)).endsWith(normalizedPath) ||
+        normalizePath(file.path).endsWith(normalizedPath)
+}
+
+private fun isPathReference(reference: String): Boolean {
+    return reference.contains('/')
 }
 
 private fun normalizePath(path: String): String {
