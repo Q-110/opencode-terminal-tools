@@ -8,7 +8,7 @@ IntelliJ IDEA 插件，将终端/控制台输出中的文件引用（如 `FileNa
 - **多文件选择**：最高得分并列或无法自动消歧时弹出对话框手动选择
 - **行范围支持**：支持 `FileName.java:10-20` 和 `src/main/java/FileName.java:10-20` 格式，点击后选中指定行范围
 - **路径支持**：支持短文件名、相对路径、Windows 绝对路径、Unix 绝对路径
-- **点击复制**：支持点击复制 opencode 输出中的结构化代码片段，例如方法调用、接口路径、点号链、数组和字面量
+- **点击复制**：支持点击复制 opencode 输出中的文本片段，例如结构化代码片段、普通英文标识符和普通数字
 - **支持 17 种文件类型**：java, kt, kts, js, jsx, ts, tsx, vue, xml, html, css, scss, yml, yaml, properties, sql, md
 - **零侵入**：纯 IDEA 端实现，不修改 opencode，不影响终端流程
 
@@ -29,11 +29,15 @@ C:\Projects\demo\src\main\java\com\example\ExampleController.java:22
 
 ## 点击复制
 
-除文件跳转链接外，插件会将 opencode 输出中的结构化文本块转换为可点击复制链接。文件跳转优先，如果文本同时符合文件引用格式，点击仍执行跳转。
+除文件跳转链接外，插件会将 opencode 输出中的文本片段转换为可点击复制链接。文件跳转优先，如果文本同时符合文件引用格式，点击仍执行跳转。
+复制链接不添加额外视觉样式，尽量保持终端原本的颜色和显示效果。
 
 支持复制的常见格式：
 
 ```text
+Plan
+DeepSeek
+120
 loadData()
 showPanel(true)
 self.items[self.currentIndex]
@@ -47,7 +51,6 @@ NaN
 ```
 
 该能力基于文本规则近似覆盖 opencode 的蓝色结构化输出块，不读取终端颜色属性，因此不保证所有 ANSI 蓝色文本都能被识别。
-普通英文单词和普通数字不会被单独转换为复制链接。
 
 ## 使用方式
 
