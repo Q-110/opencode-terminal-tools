@@ -42,6 +42,21 @@ class ConsoleLinksConfigurable : Configurable {
         panel.add(JLabel("关闭后，新输出的控制台文本将不再生成对应类型的链接。"), constraints)
 
         constraints.gridy = 3
+        constraints.insets = JBUI.insetsTop(16)
+        panel.add(JLabel("OpenCode 桥接 EDITOR 配置："), constraints)
+
+        constraints.gridy = 4
+        constraints.insets = JBUI.insetsTop(4)
+        panel.add(JLabel("PowerShell: \$env:EDITOR=\"\$env:TEMP\\opencode-idea-bridge\\opencode-editor.cmd\""), constraints)
+
+        constraints.gridy = 5
+        panel.add(JLabel("cmd: set EDITOR=%TEMP%\\opencode-idea-bridge\\opencode-editor.cmd"), constraints)
+
+        constraints.gridy = 6
+        constraints.insets = JBUI.insetsTop(4)
+        panel.add(JLabel("可选真实编辑器: \$env:OPENCODE_IDEA_REAL_EDITOR=\"code --wait\""), constraints)
+
+        constraints.gridy = 7
         constraints.weighty = 1.0
         constraints.fill = GridBagConstraints.BOTH
         panel.add(JPanel(), constraints)

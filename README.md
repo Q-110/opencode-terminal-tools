@@ -1,19 +1,17 @@
 # Console Links
 
-IntelliJ IDEA 插件，将终端/控制台输出中的文件引用（如 `FileName.java:932` 或 `src/main/java/FileName.java:10-20`）转换为可点击链接，点击后自动跳转至对应文件的指定行。
+Console Links 是一个 IntelliJ IDEA 插件，用于把 Terminal 或控制台输出里的文件引用转换成可点击链接，并提供 OpenCode 选区桥接能力。
 
-## 功能特性
+## 功能
 
-- **智能匹配**：唯一匹配直接跳转；多个同名文件优先使用路径缓存与评分系统自动选择最佳文件
-- **多文件选择**：最高得分并列或无法自动消歧时弹出对话框手动选择
-- **行范围支持**：支持 `FileName.java:10-20` 和 `src/main/java/FileName.java:10-20` 格式，点击后选中指定行范围
-- **路径支持**：支持短文件名、相对路径、Windows 绝对路径、Unix 绝对路径
-- **点击复制**：支持点击复制终端/控制台输出中的文本片段，例如结构化代码片段、普通英文标识符和普通数字
-- **功能开关**：可在 Settings → Tools → Console Links 中分别开启或关闭文件跳转链接、点击复制链接
-- **支持 17 种文件类型**：java, kt, kts, js, jsx, ts, tsx, vue, xml, html, css, scss, yml, yaml, properties, sql, md
-- **零侵入**：纯 IDEA 端实现，不修改命令行工具，不影响终端流程
+- 文件跳转：支持 `FileName.java:22`、`src/main/java/A.java:10-20` 等格式，点击后跳到对应文件和行号。
+- 行范围：支持 `10-20` 这类范围，跳转后选中对应行。
+- 路径解析：支持文件名、相对路径、Windows 绝对路径、Unix 绝对路径。
+- 点击复制：对常见结构化文本片段生成复制链接。
+- 设置页：`Settings -> Tools -> Console Links` 可开关文件跳转链接和点击复制链接。
+- OpenCode 桥接：把 IDEA 编辑器当前选区发送到正在运行的 OpenCode TUI 输入区。
 
-## 支持格式
+## 支持的文件引用格式
 
 ```text
 ExampleController.java
@@ -26,46 +24,92 @@ C:\Projects\demo\src\main\java\com\example\ExampleController.java:22
 /projects/demo/src/main/java/com/example/ExampleController.java:22
 ```
 
-路径匹配面向常见无空格控制台输出，暂不支持带空格路径。
+路径匹配主要面向常见无空格控制台输出，暂不保证带空格路径都能识别。
 
-## 点击复制
+## OpenCode 选区桥接
 
-除文件跳转链接外，插件会将终端/控制台输出中的文本片段转换为可点击复制链接。文件跳转优先，如果文本同时符合文件引用格式，点击仍执行跳转。
-复制链接不添加额外视觉样式，尽量保持终端原本的颜色和显示效果。
+插件可以把 IDEA 编辑器中选中的代码写入桥接文件，并自动向 OpenCode Terminal 发送 `/editor` 和回车，让 OpenCode 通过 `EDITOR` 脚本把选区内容合并回 TUI 输入区。
 
-支持复制的常见格式：
+### 使用步骤
 
-```text
-Plan
-DeepSeek
-120
-loadData()
-showPanel(true)
-self.items[self.currentIndex]
-loadData/loadDataV2
-/api/items?name=
-sample.geojson
-[[204,147,73] ... [55,130,204]]
-["alpha","beta","gamma"]
-null
-NaN
+1. 在 IDEA Terminal 中启动 OpenCode。
+2. 启动 OpenCode 前配置 `EDITOR` 环境变量。
+3. 在 OpenCode 所在 Terminal 标签页执行 `Mark as OpenCode Terminal`。
+4. 在编辑器中选中代码。
+5. 执行 `Send Selection to OpenCode`。
+6. 插件会激活 Terminal、聚焦输入组件，并调用 Enter。
+
+### Windows EDITOR 配置
+
+PowerShell：
+
+```powershell
+$env:EDITOR="$env:TEMP\opencode-idea-bridge\opencode-editor.cmd"
 ```
 
-该能力基于文本规则识别常见结构化输出片段，不读取终端颜色属性，因此不保证所有 ANSI 彩色文本都能被识别。
+cmd：
 
-## 使用方式
+```cmd
+set EDITOR=%TEMP%\opencode-idea-bridge\opencode-editor.cmd
+```
 
-1. 在 IDEA 中打开本项目
-2. 按需修改 `gradle.properties` 中的 `localIdePath`
-3. 执行 Gradle 任务 `runIde` 启动沙盒 IDE，或执行 `buildPlugin` 生成插件包后手动安装
-4. 在沙盒 IDE 中打开目标项目，并在终端/控制台中运行需要观察输出的命令
-5. 输出中出现 `FileName.ext:line` 或路径引用时，点击即可跳转
-6. 如需调整功能开关，可进入 Settings → Tools → Console Links 分别开启或关闭文件跳转链接、点击复制链接
+这些环境变量必须在启动 `opencode` 之前设置。已经运行中的 OpenCode 不会读取后来才设置的环境变量。
+
+插件会自动生成：
+
+```text
+%TEMP%\opencode-idea-bridge\latest-selection.md
+%TEMP%\opencode-idea-bridge\opencode-editor.ps1
+%TEMP%\opencode-idea-bridge\opencode-editor.cmd
+```
+
+选区 payload 格式固定为：
+
+```text
+src/main/java/A.java:10-20
+
+<selected code>
+```
+
+`EDITOR` 必须指向桥接脚本，不要直接指向 `code`、`notepad` 或其他真实编辑器。桥接脚本会读取 `latest-selection.md`，把选区内容合并进 OpenCode 传入的临时编辑文件，然后退出。
+
+如果希望合并选区后仍然打开真实外部编辑器，可以额外设置：
+
+```powershell
+$env:OPENCODE_IDEA_REAL_EDITOR="code --wait"
+```
+
+或：
+
+```powershell
+$env:OPENCODE_IDEA_REAL_EDITOR="notepad"
+```
+
+## 构建与运行
+
+1. 按需修改 `gradle.properties` 中的 `localIdePath`。
+2. 运行 sandbox：
+
+```powershell
+.\gradlew.bat runIde
+```
+
+3. 打包插件：
+
+```powershell
+.\gradlew.bat buildPlugin
+```
+
+插件包会生成在：
+
+```text
+build/distributions/
+```
 
 ## 技术栈
 
 | 项目 | 版本 |
-|------|------|
+| --- | --- |
 | Kotlin | 2.2.21 |
 | JVM | 17 |
 | IntelliJ Platform Plugin | 2.12.0 |
@@ -74,11 +118,7 @@ NaN
 ## 插件信息
 
 | 项目 | 值 |
-|------|----|
+| --- | --- |
 | Plugin ID | `io.github.q110.consolelinks` |
 | Group | `io.github.q110` |
 | Vendor | `zibo` |
-
-## 注意事项
-
-当前基于 `ConsoleFilterProvider` 实现。若你的 IDEA 版本或终端引擎未将该过滤器应用到普通 Terminal Tool Window，需额外实现 Reworked Terminal 专用适配。

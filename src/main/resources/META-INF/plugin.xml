@@ -4,14 +4,36 @@
     <vendor>zibo</vendor>
 
     <depends>com.intellij.modules.platform</depends>
+    <depends>org.jetbrains.plugins.terminal</depends>
 
     <extensions defaultExtensionNs="com.intellij">
         <applicationService serviceImplementation="com.example.consolelinks.ConsoleLinksSettings"/>
+        <projectService serviceImplementation="com.example.consolelinks.OpenCodeBridgeService"/>
         <applicationConfigurable
             parentId="tools"
             instance="com.example.consolelinks.ConsoleLinksConfigurable"
             id="com.example.consolelinks.ConsoleLinksConfigurable"
             displayName="Console Links"/>
         <consoleFilterProvider implementation="com.example.consolelinks.ConsoleLinksFilterProvider"/>
+        <notificationGroup displayType="BALLOON" id="Console Links"/>
     </extensions>
+
+    <actions>
+        <action
+            id="ConsoleLinks.SendSelectionToOpenCode"
+            class="com.example.consolelinks.SendSelectionToOpenCodeAction"
+            text="Send Selection to OpenCode"
+            description="Send the current editor selection to the marked OpenCode terminal">
+            <add-to-group group-id="EditorPopupMenu" anchor="last"/>
+        </action>
+        <action
+            id="ConsoleLinks.MarkOpenCodeTerminal"
+            class="com.example.consolelinks.MarkOpenCodeTerminalAction"
+            text="Mark as OpenCode Terminal"
+            description="Use this terminal tab as the OpenCode target">
+            <add-to-group group-id="Terminal.OutputContextMenu" anchor="last"/>
+            <add-to-group group-id="Terminal.PromptContextMenu" anchor="last"/>
+            <add-to-group group-id="ToolWindowContextMenu" anchor="last"/>
+        </action>
+    </actions>
 </idea-plugin>

@@ -13,6 +13,7 @@ kotlin {
 dependencies {
     intellijPlatform {
         local(providers.gradleProperty("localIdePath").get())
+        bundledPlugin("org.jetbrains.plugins.terminal")
     }
 }
 
