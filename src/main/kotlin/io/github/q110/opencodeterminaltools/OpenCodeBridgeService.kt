@@ -184,7 +184,7 @@ class OpenCodeBridgeService(
     }
 
     private fun editorOpenTrigger(): EditorOpenTrigger {
-        val configured = ConsoleLinksSettings.getInstance()
+        val configured = OpenCodeTerminalToolsSettings.getInstance()
             .getState()
             .openCodeEditorOpenShortcut
             .trim()

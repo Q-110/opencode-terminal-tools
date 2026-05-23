@@ -65,5 +65,5 @@ internal fun shortStatusText(text: String): String {
 }
 
 internal fun normalizePath(path: String): String {
-    return path.replace('\\',('/')).trim().trimEnd('.', ',', ';', ':', ')', ']', '}')
+    return path.replace('\\', '/').trim().trimEnd('.', ',', ';', ':', ')', ']', '}')
 }
