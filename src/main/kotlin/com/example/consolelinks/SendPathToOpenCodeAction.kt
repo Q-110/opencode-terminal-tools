@@ -33,8 +33,11 @@ class SendPathToOpenCodeAction : DumbAwareAction() {
             return
         }
 
-        val payload = " @${displayPath(project, virtualFile)} \n"
-        when (val result = OpenCodeBridgeService.getInstance(project).sendSelection(payload, event.dataContext)) {
+        val payload = "@${displayPath(project, virtualFile)}"
+        when (
+            val result = OpenCodeBridgeService.getInstance(project)
+                .sendSelection(payload, event.dataContext, settleAtLineEnd = true)
+        ) {
             is OpenCodeBridgeService.BridgeResult.Success -> {
                 OpenCodeBridgeService.notify(project, "已发送到 OpenCode", NotificationType.INFORMATION)
             }

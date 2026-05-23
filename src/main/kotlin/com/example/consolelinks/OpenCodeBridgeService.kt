@@ -46,10 +46,10 @@ class OpenCodeBridgeService(
         return resolveTargetTerminal(dataContext) != null
     }
 
-    fun sendSelection(payload: String, dataContext: DataContext): BridgeResult {
+    fun sendSelection(payload: String, dataContext: DataContext, settleAtLineEnd: Boolean = false): BridgeResult {
         return try {
             writeBridgeFiles(payload)
-            injectEditorCommand(dataContext)
+            injectEditorCommand(dataContext, settleAtLineEnd)
         } catch (exception: IOException) {
             BridgeResult.Error("写入 OpenCode 桥接文件失败：${exception.message}")
         }
@@ -83,17 +83,17 @@ class OpenCodeBridgeService(
         )
     }
 
-    private fun injectEditorCommand(dataContext: DataContext): BridgeResult {
+    private fun injectEditorCommand(dataContext: DataContext, settleAtLineEnd: Boolean): BridgeResult {
         val terminal = resolveTargetTerminal(dataContext)
             ?: return BridgeResult.Error("没有找到可写入的 OpenCode Terminal。请先在 OpenCode 所在 Terminal 标签页执行 Mark as OpenCode Terminal。")
 
         return when (terminal) {
-            is TargetTerminal.Classic -> injectClassicTerminal(terminal.widget)
-            is TargetTerminal.Frontend -> injectFrontendTerminal(terminal.tab)
+            is TargetTerminal.Classic -> injectClassicTerminal(terminal.widget, settleAtLineEnd)
+            is TargetTerminal.Frontend -> injectFrontendTerminal(terminal.tab, settleAtLineEnd)
         }
     }
 
-    private fun injectClassicTerminal(terminal: TerminalWidget): BridgeResult {
+    private fun injectClassicTerminal(terminal: TerminalWidget, settleAtLineEnd: Boolean): BridgeResult {
         val connector = try {
             terminal.ttyConnector
         } catch (exception: Throwable) {
@@ -113,13 +113,30 @@ class OpenCodeBridgeService(
         return try {
             terminal.requestFocus()
             connector.write(if (trigger.isCommand) trigger.text + "\r" else trigger.text)
+            if (settleAtLineEnd) {
+                scheduleClassicLineEndSpace {
+                    connector.write(LINE_END_SPACE)
+                }
+            }
             BridgeResult.Success
         } catch (exception: IOException) {
             BridgeResult.Error("发送 OpenCode editor_open 到 Terminal 失败：${exception.message}")
         }
     }
 
-    private fun injectFrontendTerminal(tab: TerminalToolWindowTab): BridgeResult {
+    private fun scheduleClassicLineEndSpace(writeLineEndSpace: () -> Unit) {
+        val timer = Timer(SETTLE_INPUT_DELAY_MS) {
+            try {
+                writeLineEndSpace()
+            } catch (exception: Throwable) {
+                notify(project, "发送 OpenCode 行尾空格失败：${exception.message}", NotificationType.WARNING)
+            }
+        }
+        timer.isRepeats = false
+        timer.start()
+    }
+
+    private fun injectFrontendTerminal(tab: TerminalToolWindowTab, settleAtLineEnd: Boolean): BridgeResult {
         val toolWindow = ToolWindowManager.getInstance(project).getToolWindow(TERMINAL_TOOL_WINDOW_ID)
             ?: return BridgeResult.Error("没有找到 Terminal 工具窗口。")
 
@@ -132,7 +149,7 @@ class OpenCodeBridgeService(
                         .requestFocusInProject(focusComponent, project)
                     focusCallback.doWhenDone(Runnable {
                         try {
-                            sendFrontendEditorCommand(view, focusComponent)
+                            sendFrontendEditorCommand(view, focusComponent, settleAtLineEnd)
                         } catch (exception: Throwable) {
                             notify(project, "发送 OpenCode editor_open 失败：${exception.message}", NotificationType.WARNING)
                         }
@@ -146,7 +163,7 @@ class OpenCodeBridgeService(
         return BridgeResult.Scheduled
     }
 
-    private fun sendFrontendEditorCommand(view: TerminalView, focusComponent: JComponent) {
+    private fun sendFrontendEditorCommand(view: TerminalView, focusComponent: JComponent, settleAtLineEnd: Boolean) {
         val trigger = editorOpenTrigger()
         try {
             sendRawFrontendString(view, trigger.text)
@@ -158,7 +175,9 @@ class OpenCodeBridgeService(
             }
         }
         if (trigger.isCommand) {
-            scheduleFrontendEnter(view, focusComponent)
+            scheduleFrontendEnter(view, focusComponent, settleAtLineEnd)
+        } else if (settleAtLineEnd) {
+            scheduleFrontendLineEndSpace(view, focusComponent, true)
         } else {
             notify(project, "已发送到 OpenCode", NotificationType.INFORMATION)
         }
@@ -213,20 +232,46 @@ class OpenCodeBridgeService(
         }
     }
 
-    private fun scheduleFrontendEnter(view: TerminalView, focusComponent: JComponent) {
+    private fun scheduleFrontendEnter(view: TerminalView, focusComponent: JComponent, settleAtLineEnd: Boolean) {
         val timer = Timer(100) {
             try {
                 IdeFocusManager.getInstance(project)
                     .requestFocusInProject(focusComponent, project)
                     .doWhenDone(Runnable {
                         pressFrontendEnter(view, focusComponent)
-                        notify(project, "已发送到 OpenCode", NotificationType.INFORMATION)
+                        if (settleAtLineEnd) {
+                            scheduleFrontendLineEndSpace(view, focusComponent, true)
+                        } else {
+                            notify(project, "已发送到 OpenCode", NotificationType.INFORMATION)
+                        }
                     })
                     .doWhenRejected(Runnable {
                         notify(project, "无法在发送 editor_open 后重新聚焦 OpenCode Terminal，未调用 Enter。", NotificationType.WARNING)
                     })
             } catch (exception: Throwable) {
                 notify(project, "调用 Enter 失败：${exception.message}", NotificationType.WARNING)
+            }
+        }
+        timer.isRepeats = false
+        timer.start()
+    }
+
+    private fun scheduleFrontendLineEndSpace(view: TerminalView, focusComponent: JComponent, notifyAfter: Boolean) {
+        val timer = Timer(SETTLE_INPUT_DELAY_MS) {
+            try {
+                IdeFocusManager.getInstance(project)
+                    .requestFocusInProject(focusComponent, project)
+                    .doWhenDone(Runnable {
+                        sendFrontendLineEndSpace(view)
+                        if (notifyAfter) {
+                            notify(project, "已发送到 OpenCode", NotificationType.INFORMATION)
+                        }
+                    })
+                    .doWhenRejected(Runnable {
+                        notify(project, "无法聚焦 OpenCode Terminal 输入组件，未发送行尾空格。", NotificationType.WARNING)
+                    })
+            } catch (exception: Throwable) {
+                notify(project, "发送 OpenCode 行尾空格失败：${exception.message}", NotificationType.WARNING)
             }
         }
         timer.isRepeats = false
@@ -257,6 +302,14 @@ class OpenCodeBridgeService(
         val terminalInput = terminalInputFromView(view)
         val sendString = terminalInput.javaClass.getMethod("sendString", String::class.java)
         sendString.invoke(terminalInput, text)
+    }
+
+    private fun sendFrontendLineEndSpace(view: TerminalView) {
+        try {
+            sendRawFrontendString(view, LINE_END_SPACE)
+        } catch (_: Throwable) {
+            view.sendText(LINE_END_SPACE)
+        }
     }
 
     private fun callFrontendSendEnter(view: TerminalView) {
@@ -427,6 +480,8 @@ class OpenCodeBridgeService(
         private const val NOTIFICATION_GROUP_ID = "Console Links"
         private const val TERMINAL_TOOL_WINDOW_ID = "Terminal"
         private const val DEFAULT_EDITOR_OPEN_SHORTCUT = "ctrl+x e"
+        private const val LINE_END_SPACE = "\u0005 "
+        private const val SETTLE_INPUT_DELAY_MS = 100
 
         val bridgeDir: Path = Path.of(System.getProperty("java.io.tmpdir"), "opencode-idea-bridge")
         val selectionFile: Path = bridgeDir.resolve("latest-selection.md")
