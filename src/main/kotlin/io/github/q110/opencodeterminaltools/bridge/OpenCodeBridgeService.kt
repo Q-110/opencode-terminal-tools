@@ -28,7 +28,7 @@ class OpenCodeBridgeService(
     /** 新版终端辅助类，仅在 2025.3+ IDE 中可加载，低版本为 null */
     private val frontendHelper: FrontendTerminalHelper? = try {
         FrontendTerminalHelper(project)
-    } catch (_: NoClassDefFoundError) {
+    } catch (_: Throwable) {
         null
     }
 

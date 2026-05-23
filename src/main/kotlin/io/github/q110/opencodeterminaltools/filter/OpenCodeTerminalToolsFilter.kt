@@ -108,8 +108,6 @@ internal class OpenCodeTerminalToolsFilter(
                     baseOffset + match.range.first,
                     baseOffset + match.range.last + 1,
                     CopyTextHyperlinkInfo(project, match.text),
-                    copyTextAttributes,
-                    copyTextAttributes,
                     copyTextAttributes
                 )
             }
