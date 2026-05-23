@@ -1,4 +1,4 @@
-package com.example.consolelinks
+package io.github.q110.opencodeterminaltools
 
 import com.intellij.notification.NotificationType
 import com.intellij.openapi.actionSystem.ActionUpdateThread

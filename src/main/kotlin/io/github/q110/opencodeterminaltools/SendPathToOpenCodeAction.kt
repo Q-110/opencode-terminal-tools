@@ -1,4 +1,4 @@
-package com.example.consolelinks
+package io.github.q110.opencodeterminaltools
 
 import com.intellij.notification.NotificationType
 import com.intellij.openapi.actionSystem.ActionUpdateThread
@@ -42,7 +42,6 @@ class SendPathToOpenCodeAction : DumbAwareAction() {
                 OpenCodeBridgeService.notify(project, "已发送到 OpenCode", NotificationType.INFORMATION)
             }
             is OpenCodeBridgeService.BridgeResult.Scheduled -> {
-                // 新版 Terminal 需要等待工具窗口激活和焦点切换，最终结果由 service 回调通知。
             }
             is OpenCodeBridgeService.BridgeResult.Error -> {
                 OpenCodeBridgeService.notify(project, result.message, NotificationType.WARNING)

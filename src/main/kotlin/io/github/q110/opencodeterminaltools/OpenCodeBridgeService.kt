@@ -1,4 +1,4 @@
-package com.example.consolelinks
+package io.github.q110.opencodeterminaltools
 
 import com.intellij.notification.NotificationGroupManager
 import com.intellij.notification.NotificationType
@@ -477,7 +477,7 @@ class OpenCodeBridgeService(
     private data class EditorOpenTrigger(val text: String, val isCommand: Boolean)
 
     companion object {
-        private const val NOTIFICATION_GROUP_ID = "Console Links"
+        private const val NOTIFICATION_GROUP_ID = "OpenCode Terminal Tools"
         private const val TERMINAL_TOOL_WINDOW_ID = "Terminal"
         private const val DEFAULT_EDITOR_OPEN_SHORTCUT = "ctrl+x e"
         private const val LINE_END_SPACE = "\u0005 "

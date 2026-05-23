@@ -28,4 +28,4 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "console-links-plugin"
+rootProject.name = "opencode-terminal-tools"

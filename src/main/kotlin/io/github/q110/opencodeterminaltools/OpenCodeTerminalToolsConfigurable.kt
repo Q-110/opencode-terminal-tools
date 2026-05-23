@@ -1,4 +1,4 @@
-package com.example.consolelinks
+package io.github.q110.opencodeterminaltools
 
 import com.intellij.openapi.options.Configurable
 import com.intellij.ui.components.JBCheckBox
@@ -10,15 +10,14 @@ import javax.swing.JComponent
 import javax.swing.JLabel
 import javax.swing.JPanel
 
-// Settings -> Tools -> Console Links 中显示的配置页。
-class ConsoleLinksConfigurable : Configurable {
+class OpenCodeTerminalToolsConfigurable : Configurable {
     private var fileLinksCheckBox: JBCheckBox? = null
     private var copyLinksCheckBox: JBCheckBox? = null
     private var openCodeEditorOpenShortcutField: JBTextField? = null
     private var panel: JPanel? = null
 
     override fun getDisplayName(): String {
-        return "Console Links"
+        return "OpenCode Terminal Tools"
     }
 
     override fun createComponent(): JComponent {
@@ -83,21 +82,21 @@ class ConsoleLinksConfigurable : Configurable {
     }
 
     override fun isModified(): Boolean {
-        val settings = ConsoleLinksSettings.getInstance().getState()
+        val settings = OpenCodeTerminalToolsSettings.getInstance().getState()
         return fileLinksCheckBox?.isSelected != settings.fileLinksEnabled ||
             copyLinksCheckBox?.isSelected != settings.copyLinksEnabled ||
             openCodeEditorOpenShortcutField?.text?.trim() != settings.openCodeEditorOpenShortcut
     }
 
     override fun apply() {
-        val settings = ConsoleLinksSettings.getInstance().getState()
+        val settings = OpenCodeTerminalToolsSettings.getInstance().getState()
         settings.fileLinksEnabled = fileLinksCheckBox?.isSelected == true
         settings.copyLinksEnabled = copyLinksCheckBox?.isSelected == true
         settings.openCodeEditorOpenShortcut = openCodeEditorOpenShortcutField?.text?.trim()?.ifEmpty { "ctrl+x e" } ?: "ctrl+x e"
     }
 
     override fun reset() {
-        val settings = ConsoleLinksSettings.getInstance().getState()
+        val settings = OpenCodeTerminalToolsSettings.getInstance().getState()
         fileLinksCheckBox?.isSelected = settings.fileLinksEnabled
         copyLinksCheckBox?.isSelected = settings.copyLinksEnabled
         openCodeEditorOpenShortcutField?.text = settings.openCodeEditorOpenShortcut

@@ -19,11 +19,11 @@ dependencies {
 
 intellijPlatform {
     pluginConfiguration {
-        id = "io.github.q110.consolelinks"
-        name = "Console Links"
+        id = "io.github.q110.opencodeterminaltools"
+        name = "OpenCode Terminal Tools"
         version = project.version.toString()
         description = """
-            <p>Console Links 是一个面向 IntelliJ IDEA 的终端/控制台增强插件，提供三大功能：</p>
+            <p>OpenCode Terminal Tools 是一个面向 IntelliJ IDEA 的终端/控制台增强插件，提供三大功能：</p>
             <ul>
               <li>文件跳转 — 将输出中的文件引用识别为可点击链接，支持短文件名、相对路径、绝对路径、行号和行范围，点击跳转到对应文件位置</li>
               <li>点击复制 — 结构化输出片段（方法调用、接口路径、点号链、字面量等）点击即复制到剪贴板</li>

@@ -1,4 +1,4 @@
-package com.example.consolelinks
+package io.github.q110.opencodeterminaltools
 
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.components.PersistentStateComponent
@@ -6,13 +6,12 @@ import com.intellij.openapi.components.Service
 import com.intellij.openapi.components.State
 import com.intellij.openapi.components.Storage
 
-// 保存插件全局设置，让已有和新打开的项目都使用同一份 Console Links 配置。
 @Service(Service.Level.APP)
 @State(
-    name = "ConsoleLinksSettings",
-    storages = [Storage("console-links.xml")]
+    name = "OpenCodeTerminalToolsSettings",
+    storages = [Storage("opencode-terminal-tools.xml")]
 )
-class ConsoleLinksSettings : PersistentStateComponent<ConsoleLinksSettings.StateData> {
+class OpenCodeTerminalToolsSettings : PersistentStateComponent<OpenCodeTerminalToolsSettings.StateData> {
     private var state = StateData()
 
     override fun getState(): StateData {
@@ -30,8 +29,8 @@ class ConsoleLinksSettings : PersistentStateComponent<ConsoleLinksSettings.State
     }
 
     companion object {
-        fun getInstance(): ConsoleLinksSettings {
-            return ApplicationManager.getApplication().getService(ConsoleLinksSettings::class.java)
+        fun getInstance(): OpenCodeTerminalToolsSettings {
+            return ApplicationManager.getApplication().getService(OpenCodeTerminalToolsSettings::class.java)
         }
     }
 }
