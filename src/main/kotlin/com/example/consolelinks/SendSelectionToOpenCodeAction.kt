@@ -5,9 +5,10 @@ import com.intellij.openapi.actionSystem.ActionUpdateThread
 import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.actionSystem.CommonDataKeys
+import com.intellij.icons.AllIcons
 import com.intellij.openapi.fileEditor.FileDocumentManager
 
-class SendSelectionToOpenCodeAction : AnAction() {
+class SendSelectionToOpenCodeAction : AnAction(AllIcons.Debugger.Console) {
     override fun getActionUpdateThread(): ActionUpdateThread {
         return ActionUpdateThread.EDT
     }
@@ -16,6 +17,7 @@ class SendSelectionToOpenCodeAction : AnAction() {
         val editor = event.getData(CommonDataKeys.EDITOR)
         val project = event.project
         val hasSelection = editor?.selectionModel?.hasSelection() == true
+        event.presentation.isVisible = project != null && hasSelection
         event.presentation.isEnabled = project != null && hasSelection
     }
 
@@ -48,15 +50,11 @@ class SendSelectionToOpenCodeAction : AnAction() {
         val startLine = document.getLineNumber(startOffset) + 1
         val endLine = document.getLineNumber(endOffsetForLine) + 1
         val filePath = displayPath(project, virtualFile)
-        val payload = "$filePath:$startLine-$endLine\n$selectedText\n"
+        val payload = "$filePath:${if (startLine == endLine) startLine else "$startLine-$endLine"}\n$selectedText\n"
 
         when (val result = OpenCodeBridgeService.getInstance(project).sendSelection(payload, event.dataContext)) {
             is OpenCodeBridgeService.BridgeResult.Success -> {
-                OpenCodeBridgeService.notify(
-                    project,
-                    "已聚焦 OpenCode Terminal，并调用 Enter（${result.enterMethod}）。EDITOR 脚本：${result.editorScript}",
-                    NotificationType.INFORMATION
-                )
+                OpenCodeBridgeService.notify(project, "已发送到 OpenCode", NotificationType.INFORMATION)
             }
             is OpenCodeBridgeService.BridgeResult.Scheduled -> {
                 // 新版 Terminal 需要等待工具窗口激活和焦点切换，最终结果由 service 回调通知。

@@ -108,7 +108,7 @@ class OpenCodeBridgeService(
         return try {
             terminal.requestFocus()
             connector.write(EDITOR_COMMAND)
-            BridgeResult.Success(selectionFile, cmdScript, "TTY")
+            BridgeResult.Success
         } catch (exception: IOException) {
             BridgeResult.Error("发送 /editor 到 OpenCode Terminal 失败：${exception.message}")
         }
@@ -151,17 +151,13 @@ class OpenCodeBridgeService(
     }
 
     private fun scheduleFrontendEnter(view: TerminalView, focusComponent: JComponent) {
-        val timer = Timer(300) {
+        val timer = Timer(100) {
             try {
                 IdeFocusManager.getInstance(project)
                     .requestFocusInProject(focusComponent, project)
                     .doWhenDone(Runnable {
-                        val enterMethod = pressFrontendEnter(view, focusComponent)
-                        notify(
-                            project,
-                            "已聚焦 OpenCode Terminal，并调用 Enter（$enterMethod）。EDITOR 脚本：$cmdScript",
-                            NotificationType.INFORMATION
-                        )
+                        pressFrontendEnter(view, focusComponent)
+                        notify(project, "已发送到 OpenCode", NotificationType.INFORMATION)
                     })
                     .doWhenRejected(Runnable {
                         notify(project, "无法在发送 /editor 后重新聚焦 OpenCode Terminal，未调用 Enter。", NotificationType.WARNING)
@@ -174,19 +170,18 @@ class OpenCodeBridgeService(
         timer.start()
     }
 
-    private fun pressFrontendEnter(view: TerminalView, focusComponent: JComponent): String {
-        return try {
+    private fun pressFrontendEnter(view: TerminalView, focusComponent: JComponent) {
+        try {
             pressRobotEnter()
-            "Robot"
-        } catch (robotException: Throwable) {
-            try {
-                callFrontendSendEnter(view)
-                "sendEnter"
-            } catch (sendEnterException: Throwable) {
-                dispatchEnterKeyEvent(focusComponent)
-                "KeyEvent"
-            }
+            return
+        } catch (_: Throwable) {
         }
+        try {
+            callFrontendSendEnter(view)
+            return
+        } catch (_: Throwable) {
+        }
+        dispatchEnterKeyEvent(focusComponent)
     }
 
     private fun pressRobotEnter() {
@@ -353,7 +348,7 @@ class OpenCodeBridgeService(
     }
 
     sealed class BridgeResult {
-        data class Success(val selectionFile: Path, val editorScript: Path, val enterMethod: String) : BridgeResult()
+        data object Success : BridgeResult()
         data object Scheduled : BridgeResult()
         data class Error(val message: String) : BridgeResult()
     }

@@ -24,7 +24,7 @@
             class="com.example.consolelinks.SendSelectionToOpenCodeAction"
             text="Send Selection to OpenCode"
             description="Send the current editor selection to the marked OpenCode terminal">
-            <add-to-group group-id="EditorPopupMenu" anchor="last"/>
+            <add-to-group group-id="EditorPopupMenu" anchor="first"/>
         </action>
         <action
             id="ConsoleLinks.MarkOpenCodeTerminal"
