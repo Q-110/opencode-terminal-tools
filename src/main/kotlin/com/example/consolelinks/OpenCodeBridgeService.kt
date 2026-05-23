@@ -105,12 +105,17 @@ class OpenCodeBridgeService(
             return BridgeResult.Error("已选择的 OpenCode Terminal 已断开连接。")
         }
 
+        val trigger = try {
+            editorOpenTrigger()
+        } catch (exception: IllegalArgumentException) {
+            return BridgeResult.Error(exception.message ?: "OpenCode editor_open 快捷键配置无效。")
+        }
         return try {
             terminal.requestFocus()
-            connector.write(EDITOR_COMMAND)
+            connector.write(if (trigger.isCommand) trigger.text + "\r" else trigger.text)
             BridgeResult.Success
         } catch (exception: IOException) {
-            BridgeResult.Error("发送 /editor 到 OpenCode Terminal 失败：${exception.message}")
+            BridgeResult.Error("发送 OpenCode editor_open 到 Terminal 失败：${exception.message}")
         }
     }
 
@@ -129,11 +134,11 @@ class OpenCodeBridgeService(
                         try {
                             sendFrontendEditorCommand(view, focusComponent)
                         } catch (exception: Throwable) {
-                            notify(project, "发送 /editor 失败：${exception.message}", NotificationType.WARNING)
+                            notify(project, "发送 OpenCode editor_open 失败：${exception.message}", NotificationType.WARNING)
                         }
                     })
                     focusCallback.doWhenRejected(Runnable {
-                        notify(project, "无法聚焦 OpenCode Terminal 输入组件，未发送 /editor。", NotificationType.WARNING)
+                        notify(project, "无法聚焦 OpenCode Terminal 输入组件，未发送 editor_open。", NotificationType.WARNING)
                     })
                 })
         }, true, true)
@@ -142,12 +147,70 @@ class OpenCodeBridgeService(
     }
 
     private fun sendFrontendEditorCommand(view: TerminalView, focusComponent: JComponent) {
+        val trigger = editorOpenTrigger()
         try {
-            sendRawFrontendString(view, EDITOR_COMMAND_TEXT)
+            sendRawFrontendString(view, trigger.text)
         } catch (exception: Throwable) {
-            view.sendText(EDITOR_COMMAND_TEXT)
+            if (trigger.isCommand) {
+                view.sendText(trigger.text.trimEnd('\r'))
+            } else {
+                throw exception
+            }
         }
-        scheduleFrontendEnter(view, focusComponent)
+        if (trigger.isCommand) {
+            scheduleFrontendEnter(view, focusComponent)
+        } else {
+            notify(project, "已发送到 OpenCode", NotificationType.INFORMATION)
+        }
+    }
+
+    private fun editorOpenTrigger(): EditorOpenTrigger {
+        val configured = ConsoleLinksSettings.getInstance()
+            .getState()
+            .openCodeEditorOpenShortcut
+            .trim()
+            .ifEmpty { DEFAULT_EDITOR_OPEN_SHORTCUT }
+        if (configured.startsWith("/")) {
+            return EditorOpenTrigger(configured, true)
+        }
+
+        return EditorOpenTrigger(shortcutToTerminalText(configured), false)
+    }
+
+    private fun shortcutToTerminalText(shortcut: String): String {
+        return shortcut.split(Regex("\\s+"))
+            .filter { it.isNotBlank() }
+            .joinToString(separator = "") { token -> shortcutTokenToTerminalText(token) }
+    }
+
+    private fun shortcutTokenToTerminalText(token: String): String {
+        val normalized = token.lowercase()
+        if (normalized.startsWith("ctrl+")) {
+            val key = normalized.removePrefix("ctrl+")
+            if (key.length == 1 && key[0] in 'a'..'z') {
+                return ((key[0].code - 'a'.code + 1).toChar()).toString()
+            }
+        }
+
+        return when (normalized) {
+            "enter" -> "\r"
+            "esc", "escape" -> "\u001B"
+            "tab" -> "\t"
+            "space" -> " "
+            "f1" -> "\u001BOP"
+            "f2" -> "\u001BOQ"
+            "f3" -> "\u001BOR"
+            "f4" -> "\u001BOS"
+            "f5" -> "\u001B[15~"
+            "f6" -> "\u001B[17~"
+            "f7" -> "\u001B[18~"
+            "f8" -> "\u001B[19~"
+            "f9" -> "\u001B[20~"
+            "f10" -> "\u001B[21~"
+            "f11" -> "\u001B[23~"
+            "f12" -> "\u001B[24~"
+            else -> if (token.length == 1) token else throw IllegalArgumentException("不支持的 OpenCode editor_open 快捷键片段：$token")
+        }
     }
 
     private fun scheduleFrontendEnter(view: TerminalView, focusComponent: JComponent) {
@@ -160,7 +223,7 @@ class OpenCodeBridgeService(
                         notify(project, "已发送到 OpenCode", NotificationType.INFORMATION)
                     })
                     .doWhenRejected(Runnable {
-                        notify(project, "无法在发送 /editor 后重新聚焦 OpenCode Terminal，未调用 Enter。", NotificationType.WARNING)
+                        notify(project, "无法在发送 editor_open 后重新聚焦 OpenCode Terminal，未调用 Enter。", NotificationType.WARNING)
                     })
             } catch (exception: Throwable) {
                 notify(project, "调用 Enter 失败：${exception.message}", NotificationType.WARNING)
@@ -358,11 +421,12 @@ class OpenCodeBridgeService(
         data class Frontend(val tab: TerminalToolWindowTab) : TargetTerminal()
     }
 
+    private data class EditorOpenTrigger(val text: String, val isCommand: Boolean)
+
     companion object {
         private const val NOTIFICATION_GROUP_ID = "Console Links"
         private const val TERMINAL_TOOL_WINDOW_ID = "Terminal"
-        private const val EDITOR_COMMAND_TEXT = "/editor"
-        private const val EDITOR_COMMAND = "/editor\r"
+        private const val DEFAULT_EDITOR_OPEN_SHORTCUT = "ctrl+x e"
 
         val bridgeDir: Path = Path.of(System.getProperty("java.io.tmpdir"), "opencode-idea-bridge")
         val selectionFile: Path = bridgeDir.resolve("latest-selection.md")

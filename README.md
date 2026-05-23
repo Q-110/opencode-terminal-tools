@@ -28,7 +28,7 @@ C:\Projects\demo\src\main\java\com\example\ExampleController.java:22
 
 ## OpenCode 选区桥接
 
-插件可以把 IDEA 编辑器中选中的代码写入桥接文件，并自动向 OpenCode Terminal 发送 `/editor` 和回车，让 OpenCode 通过 `EDITOR` 脚本把选区内容合并回 TUI 输入区。
+插件可以把 IDEA 编辑器中选中的代码写入桥接文件，并自动触发 OpenCode 的 `editor_open`，让 OpenCode 通过 `EDITOR` 脚本把选区内容合并回 TUI 输入区。
 
 ### 使用步骤
 
@@ -37,7 +37,7 @@ C:\Projects\demo\src\main\java\com\example\ExampleController.java:22
 3. 在 OpenCode 所在 Terminal 标签页执行 `Mark as OpenCode Terminal`。
 4. 在编辑器中选中代码。
 5. 执行 `Send Selection to OpenCode`。
-6. 插件会激活 Terminal、聚焦输入组件，并调用 Enter。
+6. 插件会激活 Terminal、聚焦输入组件，并触发配置的 `editor_open`。
 
 ### Windows EDITOR 配置
 
@@ -55,6 +55,22 @@ set EDITOR=%TEMP%\opencode-idea-bridge\opencode-editor.cmd
 
 这些环境变量必须在启动 `opencode` 之前设置。已经运行中的 OpenCode 不会读取后来才设置的环境变量。
 
+### OpenCode editor_open 快捷键
+
+插件默认按 OpenCode 的默认 `editor_open` 快捷键 `ctrl+x e` 触发外部编辑器，这样 OpenCode 输入框已有内容会先进入临时编辑文件，再由桥接脚本和选区内容换行拼接。
+
+如果你在 OpenCode 的 `tui.json` 中把 `editor_open` 改成了其他快捷键，需要在 `Settings -> Tools -> Console Links` 中同步修改 `OpenCode editor_open 快捷键`，例如：
+
+```text
+f4
+```
+
+如需使用旧流程，可以填写：
+
+```text
+/editor
+```
+
 插件会自动生成：
 
 ```text
@@ -67,7 +83,9 @@ set EDITOR=%TEMP%\opencode-idea-bridge\opencode-editor.cmd
 
 ```text
 src/main/java/A.java:10-20
+-------
 <selected code>
+-------
 ```
 
 `EDITOR` 必须指向桥接脚本，不要直接指向 `code`、`notepad` 或其他真实编辑器。桥接脚本会读取 `latest-selection.md`，把选区内容合并进 OpenCode 传入的临时编辑文件，然后退出。

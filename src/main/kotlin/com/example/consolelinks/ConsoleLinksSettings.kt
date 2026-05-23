@@ -26,6 +26,7 @@ class ConsoleLinksSettings : PersistentStateComponent<ConsoleLinksSettings.State
     class StateData {
         var fileLinksEnabled: Boolean = true
         var copyLinksEnabled: Boolean = true
+        var openCodeEditorOpenShortcut: String = "ctrl+x e"
     }
 
     companion object {

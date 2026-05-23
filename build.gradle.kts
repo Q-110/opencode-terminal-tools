@@ -4,7 +4,7 @@ plugins {
 }
 
 group = "io.github.q110"
-version = "1.5.1"
+version = "1.6.0"
 
 kotlin {
     jvmToolchain(17)
@@ -32,7 +32,7 @@ intellijPlatform {
         """.trimIndent()
         changeNotes = """
             <ul>
-              <li>更新插件图标及右键菜单图标</li>
+              <li>新增 OpenCode editor_open 快捷键配置，支持将 TUI 输入框原内容与编辑器选区换行拼接后回填</li>
             </ul>
         """.trimIndent()
 
