@@ -4,7 +4,7 @@ plugins {
 }
 
 group = "io.github.q110"
-version = "1.5.0"
+version = "1.5.1"
 
 kotlin {
     jvmToolchain(17)
@@ -32,8 +32,7 @@ intellijPlatform {
         """.trimIndent()
         changeNotes = """
             <ul>
-              <li>内容区固定 64 x 28</li>
-              <li>修复选区 payload 格式：去除 header 与代码间的空行，代码末尾追加换行</li>
+              <li>更新插件图标及右键菜单图标</li>
             </ul>
         """.trimIndent()
 

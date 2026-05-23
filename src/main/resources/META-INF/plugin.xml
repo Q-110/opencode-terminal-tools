@@ -22,6 +22,7 @@
         <action
             id="ConsoleLinks.SendSelectionToOpenCode"
             class="com.example.consolelinks.SendSelectionToOpenCodeAction"
+            icon="/icons/send-selection.svg"
             text="Send Selection to OpenCode"
             description="Send the current editor selection to the marked OpenCode terminal">
             <add-to-group group-id="EditorPopupMenu" anchor="first"/>
@@ -29,6 +30,7 @@
         <action
             id="ConsoleLinks.MarkOpenCodeTerminal"
             class="com.example.consolelinks.MarkOpenCodeTerminalAction"
+            icon="/icons/send-selection.svg"
             text="Mark as OpenCode Terminal"
             description="Use this terminal tab as the OpenCode target">
             <add-to-group group-id="Terminal.OutputContextMenu" anchor="last"/>
