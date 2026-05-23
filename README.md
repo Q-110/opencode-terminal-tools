@@ -147,7 +147,7 @@ build/distributions/
 | Kotlin | 2.2.21 |
 | JVM | 17 |
 | IntelliJ Platform Plugin | 2.12.0 |
-| 最低支持 IDE | 2025.3+ |
+| 最低支持 IDE | 2024.2+ |
 
 ## 插件信息
 

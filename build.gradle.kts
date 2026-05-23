@@ -59,7 +59,7 @@ intellijPlatform {
         """.trimIndent()
 
         ideaVersion {
-            sinceBuild = "253"
+            sinceBuild = "242"
         }
     }
 }
