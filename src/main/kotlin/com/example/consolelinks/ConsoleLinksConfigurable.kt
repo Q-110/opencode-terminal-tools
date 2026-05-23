@@ -68,7 +68,7 @@ class ConsoleLinksConfigurable : Configurable {
         panel.add(openCodeEditorOpenShortcutField, constraints)
 
         constraints.gridy = 9
-        panel.add(JLabel("默认 OpenCode 配置填写 ctrl+x e；如果你在 tui.json 中改成 F4，则填写 f4。也可以填写 /editor 使用旧流程。"), constraints)
+        panel.add(JLabel("默认 OpenCode 配置填写 ctrl+x e；如果你在 tui.json 中修改，则填写对应快捷键。也可以填写 /editor 使用旧流程。"), constraints)
 
         constraints.gridy = 10
         constraints.weighty = 1.0

@@ -28,6 +28,15 @@
             <add-to-group group-id="EditorPopupMenu" anchor="first"/>
         </action>
         <action
+            id="ConsoleLinks.SendPathToOpenCode"
+            class="com.example.consolelinks.SendPathToOpenCodeAction"
+            icon="/icons/send-selection.svg"
+            text="Send File Path to OpenCode"
+            description="Send the selected repository-relative path to the marked OpenCode terminal">
+            <add-to-group group-id="ProjectViewPopupMenu" anchor="first"/>
+            <add-to-group group-id="EditorTabPopupMenu" anchor="first"/>
+        </action>
+        <action
             id="ConsoleLinks.MarkOpenCodeTerminal"
             class="com.example.consolelinks.MarkOpenCodeTerminalAction"
             icon="/icons/send-selection.svg"

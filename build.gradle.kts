@@ -4,7 +4,7 @@ plugins {
 }
 
 group = "io.github.q110"
-version = "1.6.0"
+version = "1.7.0"
 
 kotlin {
     jvmToolchain(17)
@@ -27,12 +27,13 @@ intellijPlatform {
             <ul>
               <li>文件跳转 — 将输出中的文件引用识别为可点击链接，支持短文件名、相对路径、绝对路径、行号和行范围，点击跳转到对应文件位置</li>
               <li>点击复制 — 结构化输出片段（方法调用、接口路径、点号链、字面量等）点击即复制到剪贴板</li>
-              <li>OpenCode 桥接 — 在编辑器中选中代码，一键发送到 OpenCode TUI 输入区</li>
+              <li>OpenCode 桥接 — 将编辑器选区、项目树文件/文件夹路径和编辑器标签页路径发送到 OpenCode TUI 输入区</li>
             </ul>
         """.trimIndent()
         changeNotes = """
             <ul>
-              <li>新增 OpenCode editor_open 快捷键配置，支持将 TUI 输入框原内容与编辑器选区换行拼接后回填</li>
+              <li>新增项目树和编辑器标签页路径发送到 OpenCode，路径使用仓库根相对路径并带 @ 前缀</li>
+              <li>新增 @路径 控制台链接识别，支持点击文件跳转和文件夹定位</li>
             </ul>
         """.trimIndent()
 

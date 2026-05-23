@@ -16,6 +16,11 @@ internal object FilterPatterns {
         """(?<![\\/A-Za-z0-9_.$-])($PATH_PATTERN|$FILE_NAME_PATTERN)(?::(\d+)(?:-(\d+))?)?(?![\d\w.$-])"""
     )
 
+    // 匹配 @ 开头的项目相对路径，并可选匹配行号或行范围，例如 @src/main/Demo.kt:10-20。
+    val atPathRefPattern = Regex(
+        """(?<![\w$.-])@([A-Za-z0-9_.$-]+(?:[\\/][A-Za-z0-9_.$-]+)*)(?::(\d+)(?:-(\d+))?)?(?![\d\w.$-])"""
+    )
+
     // 匹配适合点击复制的结构化片段；顺序越靠前，优先级越高。
     val copyPatterns = listOf(
         // 双花括号内容，例如 {{name}}。

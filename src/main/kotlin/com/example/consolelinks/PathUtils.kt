@@ -2,19 +2,30 @@ package com.example.consolelinks
 
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.roots.ProjectRootManager
+import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.openapi.vfs.VfsUtilCore
 import com.intellij.openapi.vfs.VirtualFile
 
-// 获取适合展示给用户看的项目内路径，优先显示相对于内容根的路径。
+// 获取适合展示给用户看的仓库内路径，优先显示相对于项目根的路径。
 internal fun displayPath(project: Project, file: VirtualFile): String {
+    val projectBasePath = project.basePath
+    if (projectBasePath != null) {
+        val normalizedBasePath = projectBasePath.replace('\\', '/')
+        if (file.path == normalizedBasePath) {
+            return "."
+        }
+        if (file.path.startsWith("$normalizedBasePath/")) {
+            return file.path.removePrefix("$normalizedBasePath/")
+        }
+    }
+
     val fileIndex = ProjectRootManager.getInstance(project).fileIndex
     val contentRoot = fileIndex.getContentRootForFile(file)
     if (contentRoot != null) {
         return VfsUtilCore.getRelativePath(file, contentRoot, '/') ?: file.path
     }
 
-    val projectBasePath = project.basePath ?: return file.path
-    return file.path.removePrefix(projectBasePath.replace('\\', '/') + "/")
+    return file.path
 }
 
 // 判断某个真实文件是否匹配控制台输出中的路径文本。
@@ -23,6 +34,22 @@ internal fun pathMatches(project: Project, file: VirtualFile, path: String): Boo
     // 同时比较项目内显示路径和真实磁盘路径，兼容相对路径与绝对路径。
     return normalizePath(displayPath(project, file)).endsWith(normalizedPath) ||
         normalizePath(file.path).endsWith(normalizedPath)
+}
+
+// 按项目相对路径查找真实文件或文件夹。
+internal fun findProjectPath(project: Project, path: String): VirtualFile? {
+    val normalizedPath = normalizePath(path).trimStart('/')
+    val roots = mutableListOf<VirtualFile>()
+    val basePath = project.basePath
+    if (basePath != null) {
+        LocalFileSystem.getInstance().findFileByPath(basePath.replace('\\', '/'))?.let { roots += it }
+    }
+    roots += ProjectRootManager.getInstance(project).contentRoots
+
+    return roots.asSequence()
+        .distinctBy { it.path }
+        .mapNotNull { it.findFileByRelativePath(normalizedPath) }
+        .firstOrNull()
 }
 
 // 当前逻辑中，只要包含正斜杠就认为它是路径，而不是单纯文件名。

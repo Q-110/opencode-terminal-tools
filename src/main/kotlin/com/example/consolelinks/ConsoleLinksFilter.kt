@@ -36,7 +36,41 @@ internal class ConsoleLinksFilter(
 
         if (settings.fileLinksEnabled) {
             // 第一轮优先识别文件引用，因为文件跳转的优先级高于点击复制。
+            for (match in FilterPatterns.atPathRefPattern.findAll(line)) {
+                val reference = normalizePath(match.groupValues[1])
+                val target = findProjectPathReference(reference) ?: continue
+                val hasLineNumber = match.groupValues[2].isNotEmpty()
+                val lineNumber = match.groupValues[2].toIntOrNull() ?: 1
+                val endLineNumber = match.groupValues[3].toIntOrNull()
+
+                fileLinkRanges += match.range
+                items += if (target.isDirectory) {
+                    Filter.ResultItem(
+                        baseOffset + match.range.first,
+                        baseOffset + match.range.last + 1,
+                        FolderReferenceHyperlinkInfo(project, target)
+                    )
+                } else {
+                    Filter.ResultItem(
+                        baseOffset + match.range.first,
+                        baseOffset + match.range.last + 1,
+                        FileReferenceHyperlinkInfo(
+                            project,
+                            listOf(target),
+                            target.name,
+                            reference,
+                            hasLineNumber,
+                            lineNumber,
+                            endLineNumber,
+                            recentFilePathsByName.toMap()
+                        )
+                    )
+                }
+            }
+
             for (match in FilterPatterns.fileRefPattern.findAll(line)) {
+                if (rangesOverlap(match.range, fileLinkRanges)) continue
+
                 val reference = normalizePath(match.groupValues[1])
                 val fileName = reference.substringAfterLast('/')
                 val requestedPath = if (isPathReference(reference)) reference else null
@@ -80,6 +114,12 @@ internal class ConsoleLinksFilter(
         }
 
         return if (items.isEmpty()) null else Filter.Result(items)
+    }
+
+    private fun findProjectPathReference(path: String): VirtualFile? {
+        return ReadAction.compute<VirtualFile?, RuntimeException> {
+            findProjectPath(project, path)
+        }
     }
 
     private fun findProjectFiles(fileName: String, requestedPath: String?): List<VirtualFile> {
