@@ -481,7 +481,7 @@ class OpenCodeBridgeService(
         private const val TERMINAL_TOOL_WINDOW_ID = "Terminal"
         private const val DEFAULT_EDITOR_OPEN_SHORTCUT = "ctrl+x e"
         private const val LINE_END_SPACE = "\u0005 "
-        private const val SETTLE_INPUT_DELAY_MS = 100
+        private const val SETTLE_INPUT_DELAY_MS = 300
 
         val bridgeDir: Path = Path.of(System.getProperty("java.io.tmpdir"), "opencode-idea-bridge")
         val selectionFile: Path = bridgeDir.resolve("latest-selection.md")

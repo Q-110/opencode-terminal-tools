@@ -16,6 +16,7 @@
             displayName="Console Links"/>
         <consoleFilterProvider implementation="com.example.consolelinks.ConsoleLinksFilterProvider"/>
         <notificationGroup displayType="BALLOON" id="Console Links"/>
+        <postStartupActivity implementation="com.example.consolelinks.ConsoleLinksMenuRegistrar"/>
     </extensions>
 
     <actions>
@@ -24,18 +25,13 @@
             class="com.example.consolelinks.SendSelectionToOpenCodeAction"
             icon="/icons/send-selection.svg"
             text="Send Selection to OpenCode"
-            description="Send the current editor selection to the marked OpenCode terminal">
-            <add-to-group group-id="EditorPopupMenu" anchor="first"/>
-        </action>
+            description="Send the current editor selection to the marked OpenCode terminal"/>
         <action
             id="ConsoleLinks.SendPathToOpenCode"
             class="com.example.consolelinks.SendPathToOpenCodeAction"
             icon="/icons/send-selection.svg"
             text="Send File Path to OpenCode"
-            description="Send the selected repository-relative path to the marked OpenCode terminal">
-            <add-to-group group-id="ProjectViewPopupMenu" anchor="first"/>
-            <add-to-group group-id="EditorTabPopupMenu" anchor="first"/>
-        </action>
+            description="Send the selected repository-relative path to the marked OpenCode terminal"/>
         <action
             id="ConsoleLinks.MarkOpenCodeTerminal"
             class="com.example.consolelinks.MarkOpenCodeTerminalAction"

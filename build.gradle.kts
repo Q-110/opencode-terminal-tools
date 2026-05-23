@@ -4,7 +4,7 @@ plugins {
 }
 
 group = "io.github.q110"
-version = "1.7.1"
+version = "1.7.2"
 
 kotlin {
     jvmToolchain(17)
@@ -32,8 +32,8 @@ intellijPlatform {
         """.trimIndent()
         changeNotes = """
             <ul>
-              <li>修复 OpenCode 路径发送格式，去掉路径前后包裹空格和尾部换行</li>
-              <li>发送路径后自动移动到输入行末尾并补真实空格，避免 OpenCode 文件补全态卡住</li>
+              <li>右键菜单项改为代码动态注册，始终排在菜单最前面，不再受插件加载顺序影响</li>
+              <li>提高 OpenCode 行尾空格发送延迟，避免终端未处理完输入时空格丢失</li>
             </ul>
         """.trimIndent()
 
