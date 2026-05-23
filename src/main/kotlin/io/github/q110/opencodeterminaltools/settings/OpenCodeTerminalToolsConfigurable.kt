@@ -1,4 +1,5 @@
-package io.github.q110.opencodeterminaltools
+// 设置面板 — Settings / Tools / OpenCode Terminal Tools
+package io.github.q110.opencodeterminaltools.settings
 
 import com.intellij.openapi.options.Configurable
 import com.intellij.ui.components.JBCheckBox
@@ -20,6 +21,7 @@ class OpenCodeTerminalToolsConfigurable : Configurable {
         return "OpenCode Terminal Tools"
     }
 
+    /** 构建 GridBagLayout 布局的设置面板 */
     override fun createComponent(): JComponent {
         val fileLinksCheckBox = JBCheckBox("启用文件跳转链接")
         val copyLinksCheckBox = JBCheckBox("启用点击复制链接")
@@ -88,6 +90,7 @@ class OpenCodeTerminalToolsConfigurable : Configurable {
             openCodeEditorOpenShortcutField?.text?.trim() != settings.openCodeEditorOpenShortcut
     }
 
+    /** 同步 UI 值到持久化状态 */
     override fun apply() {
         val settings = OpenCodeTerminalToolsSettings.getInstance().getState()
         settings.fileLinksEnabled = fileLinksCheckBox?.isSelected == true
@@ -95,6 +98,7 @@ class OpenCodeTerminalToolsConfigurable : Configurable {
         settings.openCodeEditorOpenShortcut = openCodeEditorOpenShortcutField?.text?.trim()?.ifEmpty { "ctrl+x e" } ?: "ctrl+x e"
     }
 
+    /** 从持久化状态恢复 UI */
     override fun reset() {
         val settings = OpenCodeTerminalToolsSettings.getInstance().getState()
         fileLinksCheckBox?.isSelected = settings.fileLinksEnabled

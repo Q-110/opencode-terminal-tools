@@ -1,4 +1,5 @@
-package io.github.q110.opencodeterminaltools
+// "标记为 OpenCode 终端" Action — 将当前 Terminal 标签页标记为 OpenCode 桥接目标
+package io.github.q110.opencodeterminaltools.bridge
 
 import com.intellij.notification.NotificationType
 import com.intellij.openapi.actionSystem.ActionUpdateThread

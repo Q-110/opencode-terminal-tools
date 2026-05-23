@@ -1,4 +1,5 @@
-package io.github.q110.opencodeterminaltools
+// "发送文件/文件夹路径到 OpenCode" Action — 项目树或编辑器标签页右键发送路径
+package io.github.q110.opencodeterminaltools.bridge
 
 import com.intellij.notification.NotificationType
 import com.intellij.openapi.actionSystem.ActionUpdateThread
@@ -6,12 +7,14 @@ import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.actionSystem.CommonDataKeys
 import com.intellij.openapi.project.DumbAwareAction
 import com.intellij.openapi.vfs.VirtualFile
+import io.github.q110.opencodeterminaltools.filter.displayPath
 
 class SendPathToOpenCodeAction : DumbAwareAction() {
     override fun getActionUpdateThread(): ActionUpdateThread {
         return ActionUpdateThread.BGT
     }
 
+    /** 根据选中项是文件还是文件夹动态改变菜单文字 */
     override fun update(event: AnActionEvent) {
         val project = event.project
         val selectedFiles = selectedVirtualFiles(event)
@@ -25,6 +28,7 @@ class SendPathToOpenCodeAction : DumbAwareAction() {
         event.presentation.isEnabledAndVisible = project != null && hasFile
     }
 
+    /** 以 @path 格式发送路径，settleAtLineEnd=true 结束 OpenCode @路径补全 */
     override fun actionPerformed(event: AnActionEvent) {
         val project = event.project ?: return
         val virtualFile = selectedVirtualFiles(event).firstOrNull()
@@ -49,6 +53,7 @@ class SendPathToOpenCodeAction : DumbAwareAction() {
         }
     }
 
+    /** 获取选中文件：优先 VIRTUAL_FILE_ARRAY → VIRTUAL_FILE */
     private fun selectedVirtualFiles(event: AnActionEvent): List<VirtualFile> {
         val selectedFiles = event.getData(CommonDataKeys.VIRTUAL_FILE_ARRAY)
         if (!selectedFiles.isNullOrEmpty()) {

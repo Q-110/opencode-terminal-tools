@@ -1,4 +1,5 @@
-package io.github.q110.opencodeterminaltools
+// "发送选区到 OpenCode" Action — 将编辑器选中代码通过桥接发送到 OpenCode TUI 输入区
+package io.github.q110.opencodeterminaltools.bridge
 
 import com.intellij.notification.NotificationType
 import com.intellij.openapi.actionSystem.ActionUpdateThread
@@ -7,6 +8,7 @@ import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.actionSystem.CommonDataKeys
 import com.intellij.icons.AllIcons
 import com.intellij.openapi.fileEditor.FileDocumentManager
+import io.github.q110.opencodeterminaltools.filter.displayPath
 
 class SendSelectionToOpenCodeAction : AnAction(AllIcons.Debugger.Console) {
     override fun getActionUpdateThread(): ActionUpdateThread {
@@ -21,6 +23,7 @@ class SendSelectionToOpenCodeAction : AnAction(AllIcons.Debugger.Console) {
         event.presentation.isEnabled = project != null && hasSelection
     }
 
+    /** 构造 payload 并调用桥接服务 */
     override fun actionPerformed(event: AnActionEvent) {
         val project = event.project ?: return
         val editor = event.getData(CommonDataKeys.EDITOR)

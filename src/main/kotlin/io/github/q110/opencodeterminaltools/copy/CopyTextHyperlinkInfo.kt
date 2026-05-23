@@ -1,4 +1,5 @@
-package io.github.q110.opencodeterminaltools
+// 点击复制链接处理器 — 点击后将匹配文本复制到剪贴板并显示 "已复制" 提示
+package io.github.q110.opencodeterminaltools.copy
 
 import com.intellij.execution.filters.HyperlinkInfoBase
 import com.intellij.openapi.ide.CopyPasteManager
@@ -19,6 +20,7 @@ internal class CopyTextHyperlinkInfo(
     private val project: Project,
     private val text: String
 ) : HyperlinkInfoBase() {
+    /** 复制文本并在链接上方显示持续 700ms 的 Balloon 提示 */
     override fun navigate(project: Project, hyperlinkLocationPoint: RelativePoint?) {
         CopyPasteManager.copyTextToClipboard(text)
         if (hyperlinkLocationPoint == null) {

@@ -1,4 +1,5 @@
-package io.github.q110.opencodeterminaltools
+// ConsoleFilterProvider 实现 — 向控制台/终端注册核心 Filter
+package io.github.q110.opencodeterminaltools.filter
 
 import com.intellij.execution.filters.ConsoleFilterProvider
 import com.intellij.execution.filters.Filter

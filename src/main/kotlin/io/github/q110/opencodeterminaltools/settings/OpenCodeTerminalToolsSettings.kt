@@ -1,4 +1,5 @@
-package io.github.q110.opencodeterminaltools
+// 配置持久化层 — APP 级单例，存储到 opencode-terminal-tools.xml
+package io.github.q110.opencodeterminaltools.settings
 
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.components.PersistentStateComponent
@@ -22,6 +23,7 @@ class OpenCodeTerminalToolsSettings : PersistentStateComponent<OpenCodeTerminalT
         this.state = state
     }
 
+    /** 持久化字段定义，默认值均为开启 */
     class StateData {
         var fileLinksEnabled: Boolean = true
         var copyLinksEnabled: Boolean = true

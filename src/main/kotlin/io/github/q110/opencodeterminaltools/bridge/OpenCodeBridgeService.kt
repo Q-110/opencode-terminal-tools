@@ -1,4 +1,5 @@
-package io.github.q110.opencodeterminaltools
+// OpenCode 桥接核心服务 — 选区写入桥接文件 → 触发 OpenCode editor_open 快捷键
+package io.github.q110.opencodeterminaltools.bridge
 
 import com.intellij.notification.NotificationGroupManager
 import com.intellij.notification.NotificationType
@@ -13,6 +14,7 @@ import com.intellij.terminal.frontend.toolwindow.TerminalToolWindowTab
 import com.intellij.terminal.frontend.toolwindow.TerminalToolWindowTabsManager
 import com.intellij.terminal.frontend.view.TerminalView
 import com.intellij.terminal.ui.TerminalWidget
+import io.github.q110.opencodeterminaltools.settings.OpenCodeTerminalToolsSettings
 import org.jetbrains.plugins.terminal.TerminalToolWindowManager
 import java.awt.Component
 import java.awt.Robot
@@ -29,8 +31,10 @@ import javax.swing.Timer
 class OpenCodeBridgeService(
     private val project: Project
 ) {
+    /** 用户手动标记的目标终端（优先使用） */
     private var markedTerminal: TargetTerminal? = null
 
+    /** 标记当前终端：右键菜单 → 当前终端 → 选中标签页 → 唯一可用终端 */
     fun markTerminal(dataContext: DataContext): Boolean {
         val terminal = classicTerminalFromDataContext(dataContext)?.let { TargetTerminal.Classic(it) }
             ?: selectedFrontendTerminal()?.let { TargetTerminal.Frontend(it) }
@@ -42,10 +46,12 @@ class OpenCodeBridgeService(
         return true
     }
 
+    /** 检查是否有可用终端 */
     fun canFindTerminal(dataContext: DataContext): Boolean {
         return resolveTargetTerminal(dataContext) != null
     }
 
+    /** 两阶段发送：写入桥接文件 → 注入 editor_open 到终端 */
     fun sendSelection(payload: String, dataContext: DataContext, settleAtLineEnd: Boolean = false): BridgeResult {
         return try {
             writeBridgeFiles(payload)
@@ -55,6 +61,7 @@ class OpenCodeBridgeService(
         }
     }
 
+    /** 阶段一：在 %TEMP%\opencode-idea-bridge\ 下写入选区文件及桥接脚本 */
     private fun writeBridgeFiles(payload: String) {
         Files.createDirectories(bridgeDir)
         Files.writeString(
@@ -83,6 +90,7 @@ class OpenCodeBridgeService(
         )
     }
 
+    /** 阶段二：找到目标终端并触发 editor_open */
     private fun injectEditorCommand(dataContext: DataContext, settleAtLineEnd: Boolean): BridgeResult {
         val terminal = resolveTargetTerminal(dataContext)
             ?: return BridgeResult.Error("没有找到可写入的 OpenCode Terminal。请先在 OpenCode 所在 Terminal 标签页执行 Mark as OpenCode Terminal。")
@@ -93,6 +101,7 @@ class OpenCodeBridgeService(
         }
     }
 
+    /** 通过 TTY Connector 向经典终端写入快捷键序列 */
     private fun injectClassicTerminal(terminal: TerminalWidget, settleAtLineEnd: Boolean): BridgeResult {
         val connector = try {
             terminal.ttyConnector
@@ -124,6 +133,7 @@ class OpenCodeBridgeService(
         }
     }
 
+    /** 经典终端上行尾空格延时 300ms（等待 OpenCode 处理完输入） */
     private fun scheduleClassicLineEndSpace(writeLineEndSpace: () -> Unit) {
         val timer = Timer(SETTLE_INPUT_DELAY_MS) {
             try {
@@ -136,6 +146,7 @@ class OpenCodeBridgeService(
         timer.start()
     }
 
+    /** 通过新版 Terminal API 激活标签页、聚焦、发送快捷键 */
     private fun injectFrontendTerminal(tab: TerminalToolWindowTab, settleAtLineEnd: Boolean): BridgeResult {
         val toolWindow = ToolWindowManager.getInstance(project).getToolWindow(TERMINAL_TOOL_WINDOW_ID)
             ?: return BridgeResult.Error("没有找到 Terminal 工具窗口。")
@@ -163,6 +174,7 @@ class OpenCodeBridgeService(
         return BridgeResult.Scheduled
     }
 
+    /** 前端终端聚焦后：反射调用 sendString → 如果是命令则延时发送 Enter */
     private fun sendFrontendEditorCommand(view: TerminalView, focusComponent: JComponent, settleAtLineEnd: Boolean) {
         val trigger = editorOpenTrigger()
         try {
@@ -183,6 +195,7 @@ class OpenCodeBridgeService(
         }
     }
 
+    /** 从用户配置中解析 editor_open 触发命令 */
     private fun editorOpenTrigger(): EditorOpenTrigger {
         val configured = OpenCodeTerminalToolsSettings.getInstance()
             .getState()
@@ -196,12 +209,14 @@ class OpenCodeBridgeService(
         return EditorOpenTrigger(shortcutToTerminalText(configured), false)
     }
 
+    /** 将快捷键描述（如 "ctrl+x e"）转为终端控制字符序列 */
     private fun shortcutToTerminalText(shortcut: String): String {
         return shortcut.split(Regex("\\s+"))
             .filter { it.isNotBlank() }
             .joinToString(separator = "") { token -> shortcutTokenToTerminalText(token) }
     }
 
+    /** 单个快捷键 token 转义：ctrl+x→\u0018, enter→\r, F1-F12→转义序列 */
     private fun shortcutTokenToTerminalText(token: String): String {
         val normalized = token.lowercase()
         if (normalized.startsWith("ctrl+")) {
@@ -232,6 +247,7 @@ class OpenCodeBridgeService(
         }
     }
 
+    /** 命令模式：延时 100ms 后三层次 Fallback 发送 Enter */
     private fun scheduleFrontendEnter(view: TerminalView, focusComponent: JComponent, settleAtLineEnd: Boolean) {
         val timer = Timer(100) {
             try {
@@ -256,6 +272,7 @@ class OpenCodeBridgeService(
         timer.start()
     }
 
+    /** 延时 300ms 后发送行尾空格（结束 OpenCode @路径补全状态） */
     private fun scheduleFrontendLineEndSpace(view: TerminalView, focusComponent: JComponent, notifyAfter: Boolean) {
         val timer = Timer(SETTLE_INPUT_DELAY_MS) {
             try {
@@ -278,6 +295,7 @@ class OpenCodeBridgeService(
         timer.start()
     }
 
+    /** 三层次 Enter Fallback：Robot API → 反射 sendEnter → KeyEvent dispatch */
     private fun pressFrontendEnter(view: TerminalView, focusComponent: JComponent) {
         try {
             pressRobotEnter()
@@ -298,12 +316,14 @@ class OpenCodeBridgeService(
         robot.keyRelease(KeyEvent.VK_ENTER)
     }
 
+    /** 反射调用 terminalInput.sendString() */
     private fun sendRawFrontendString(view: TerminalView, text: String) {
         val terminalInput = terminalInputFromView(view)
         val sendString = terminalInput.javaClass.getMethod("sendString", String::class.java)
         sendString.invoke(terminalInput, text)
     }
 
+    /** 发送行尾空格：优先反射 sendString → 退化为 view.sendText */
     private fun sendFrontendLineEndSpace(view: TerminalView) {
         try {
             sendRawFrontendString(view, LINE_END_SPACE)
@@ -312,12 +332,14 @@ class OpenCodeBridgeService(
         }
     }
 
+    /** 反射调用 terminalInput.sendEnter() */
     private fun callFrontendSendEnter(view: TerminalView) {
         val terminalInput = terminalInputFromView(view)
         val sendEnter = terminalInput.javaClass.getMethod("sendEnter")
         sendEnter.invoke(terminalInput)
     }
 
+    /** 从 TerminalView 反射获取 internal 字段 terminalInput */
     private fun terminalInputFromView(view: TerminalView): Any {
         return findField(view.javaClass, "terminalInput")
             ?.let { field ->
@@ -327,12 +349,14 @@ class OpenCodeBridgeService(
             ?: throw IllegalStateException("无法访问新版 Terminal 输入通道")
     }
 
+    /** 直接向组件派发 KeyEvent（最末回退） */
     private fun dispatchEnterKeyEvent(component: Component) {
         val now = System.currentTimeMillis()
         component.dispatchEvent(KeyEvent(component, KeyEvent.KEY_PRESSED, now, 0, KeyEvent.VK_ENTER, '\n'))
         component.dispatchEvent(KeyEvent(component, KeyEvent.KEY_RELEASED, now, 0, KeyEvent.VK_ENTER, '\n'))
     }
 
+    /** 沿类继承链向上查找字段（处理 Java 内部类的继承结构） */
     private fun findField(type: Class<*>, name: String): java.lang.reflect.Field? {
         var current: Class<*>? = type
         while (current != null) {
@@ -345,6 +369,7 @@ class OpenCodeBridgeService(
         return null
     }
 
+    /** 终端发现优先级：已标记 → DataContext → 选中标签页 → 唯一可用 */
     private fun resolveTargetTerminal(dataContext: DataContext): TargetTerminal? {
         val marked = markedTerminal
         if (marked != null) {
@@ -370,6 +395,7 @@ class OpenCodeBridgeService(
         return JBTerminalWidget.TERMINAL_DATA_KEY.getData(dataContext)?.asNewWidget()
     }
 
+    /** 优先前端终端 → 经典终端 */
     private fun selectedTerminal(): TargetTerminal? {
         return selectedFrontendTerminal()?.let { TargetTerminal.Frontend(it) }
             ?: selectedClassicTerminal()?.let { TargetTerminal.Classic(it) }
@@ -392,6 +418,7 @@ class OpenCodeBridgeService(
             .firstOrNull { it.content == selectedContent }
     }
 
+    /** 唯一可用终端（前端 + 经典合并列表） */
     private fun singleUsableTerminal(): TargetTerminal? {
         val frontendTerminals = TerminalToolWindowTabsManager.getInstance(project)
             .tabs
@@ -405,6 +432,7 @@ class OpenCodeBridgeService(
         return terminals.singleOrNull()
     }
 
+    /** 检查终端是否可用：经典终端检查 TTY 连接，前端终端检查 tab 仍存在 */
     private fun isUsable(terminal: TargetTerminal): Boolean {
         return when (terminal) {
             is TargetTerminal.Classic -> {
@@ -420,6 +448,7 @@ class OpenCodeBridgeService(
         }
     }
 
+    /** PowerShell 桥接脚本：读取选区内容，拼接到 OpenCode 传入的临时编辑文件 */
     private fun powerShellScriptContent(): String {
         return """
             param([string]${'$'}TargetFile)
@@ -455,6 +484,7 @@ class OpenCodeBridgeService(
         """.trimIndent()
     }
 
+    /** CMD 桥接脚本：转调 PowerShell */
     private fun cmdScriptContent(): String {
         return """
             @echo off
@@ -463,12 +493,14 @@ class OpenCodeBridgeService(
         """.trimIndent()
     }
 
+    /** 发送结果类型 */
     sealed class BridgeResult {
         data object Success : BridgeResult()
         data object Scheduled : BridgeResult()
         data class Error(val message: String) : BridgeResult()
     }
 
+    /** 终端类型抽象：经典 / 前端 */
     private sealed class TargetTerminal {
         data class Classic(val widget: TerminalWidget) : TargetTerminal()
         data class Frontend(val tab: TerminalToolWindowTab) : TargetTerminal()
@@ -480,7 +512,9 @@ class OpenCodeBridgeService(
         private const val NOTIFICATION_GROUP_ID = "OpenCode Terminal Tools"
         private const val TERMINAL_TOOL_WINDOW_ID = "Terminal"
         private const val DEFAULT_EDITOR_OPEN_SHORTCUT = "ctrl+x e"
+        /** 行尾空格使用 \u0005（Ctrl+E 的终端编码）加空格 */
         private const val LINE_END_SPACE = "\u0005 "
+        /** 等待 OpenCode 处理输入后再发行尾空格 */
         private const val SETTLE_INPUT_DELAY_MS = 300
 
         val bridgeDir: Path = Path.of(System.getProperty("java.io.tmpdir"), "opencode-idea-bridge")

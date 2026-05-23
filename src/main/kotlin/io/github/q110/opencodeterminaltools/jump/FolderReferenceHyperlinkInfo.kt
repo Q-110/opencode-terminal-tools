@@ -1,4 +1,5 @@
-package io.github.q110.opencodeterminaltools
+// 文件夹跳转链接处理器 — 点击后在 Project View 中定位并展开文件夹
+package io.github.q110.opencodeterminaltools.jump
 
 import com.intellij.execution.filters.HyperlinkInfo
 import com.intellij.ide.projectView.ProjectView

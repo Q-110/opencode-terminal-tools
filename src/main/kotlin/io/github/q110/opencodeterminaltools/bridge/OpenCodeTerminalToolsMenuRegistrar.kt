@@ -1,4 +1,5 @@
-package io.github.q110.opencodeterminaltools
+// 启动后动态注册右键菜单项 — 确保排在菜单最前面，不受加载顺序影响
+package io.github.q110.opencodeterminaltools.bridge
 
 import com.intellij.openapi.actionSystem.ActionManager
 import com.intellij.openapi.actionSystem.Constraints
@@ -15,6 +16,7 @@ class OpenCodeTerminalToolsMenuRegistrar : StartupActivity, DumbAware {
         registerMenuFirst(actionManager, "EditorTabPopupMenu", "OpenCodeTerminalTools.SendPathToOpenCode")
     }
 
+    /** 以 Constraints.FIRST 插入菜单组最前面 */
     private fun registerMenuFirst(actionManager: ActionManager, menuId: String, actionId: String) {
         val group = actionManager.getAction(menuId) as? DefaultActionGroup ?: return
         val action = actionManager.getAction(actionId) ?: return

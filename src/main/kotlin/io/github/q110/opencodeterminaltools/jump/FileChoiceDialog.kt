@@ -1,4 +1,5 @@
-package io.github.q110.opencodeterminaltools
+// 同名文件选择弹窗 — 当多个文件匹配时让用户手动选择
+package io.github.q110.opencodeterminaltools.jump
 
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.DialogWrapper
@@ -6,6 +7,7 @@ import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.openapi.wm.WindowManager
 import com.intellij.ui.components.JBList
 import com.intellij.ui.components.JBScrollPane
+import io.github.q110.opencodeterminaltools.filter.displayPath
 import java.awt.BorderLayout
 import java.awt.Dimension
 import java.awt.Toolkit
@@ -38,6 +40,7 @@ internal class FileChoiceDialog(
         return panel
     }
 
+    /** 弹窗大小取窗口/屏幕尺寸的 50% */
     private fun dialogSize(project: Project): Dimension {
         val windowSize = WindowManager.getInstance().getFrame(project)?.size
             ?: Toolkit.getDefaultToolkit().screenSize
