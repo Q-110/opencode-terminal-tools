@@ -3,7 +3,6 @@ package io.github.q110.opencodeterminaltools.filter
 
 import com.intellij.execution.filters.Filter
 import com.intellij.openapi.application.ReadAction
-import com.intellij.openapi.editor.markup.TextAttributes
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.psi.search.FilenameIndex
@@ -18,8 +17,6 @@ internal class OpenCodeTerminalToolsFilter(
 ) : Filter {
     /** LRU 缓存：文件名 → 最近出现的路径 */
     private val recentFilePathsByName = LinkedHashMap<String, String>()
-    private val copyTextAttributes = TextAttributes()
-
     /** @param line 当前输出行文本，entireLength 整段内容总长度（用于计算 baseOffset） */
     override fun applyFilter(line: String, entireLength: Int): Filter.Result? {
         val settings = OpenCodeTerminalToolsSettings.getInstance().getState()
@@ -107,10 +104,7 @@ internal class OpenCodeTerminalToolsFilter(
                 items += Filter.ResultItem(
                     baseOffset + match.range.first,
                     baseOffset + match.range.last + 1,
-                    CopyTextHyperlinkInfo(project, match.text),
-                    copyTextAttributes,
-                    copyTextAttributes,
-                    copyTextAttributes
+                    CopyTextHyperlinkInfo(project, match.text)
                 )
             }
         }

@@ -10,9 +10,30 @@ kotlin {
     jvmToolchain(17)
 }
 
+repositories {
+    mavenCentral()
+    intellijPlatform {
+        defaultRepositories()
+    }
+}
+
+val platformVersion = providers.gradleProperty("platformVersion").getOrElse("2025.3")
+val platformType = providers.gradleProperty("platformType").getOrElse("IU")
+
 dependencies {
     intellijPlatform {
-        local(providers.gradleProperty("localIdePath").get())
+        when (platformType.uppercase()) {
+            "IC", "IU" -> intellijIdea(platformVersion)
+            "PY"       -> pycharm(platformVersion)
+            "WS"       -> webstorm(platformVersion)
+            "GO"       -> goland(platformVersion)
+            "PS"       -> phpstorm(platformVersion)
+            "RM"       -> rubymine(platformVersion)
+            "RD"       -> rider(platformVersion)
+            "CL"       -> clion(platformVersion)
+            "DG"       -> datagrip(platformVersion)
+            else       -> intellijIdea(platformVersion)
+        }
         bundledPlugin("org.jetbrains.plugins.terminal")
     }
 }
@@ -23,7 +44,7 @@ intellijPlatform {
         name = "OpenCode Terminal Tools"
         version = project.version.toString()
         description = """
-            <p>OpenCode Terminal Tools 是一个面向 IntelliJ IDEA 的终端/控制台增强插件，提供三大功能：</p>
+            <p>OpenCode Terminal Tools 是一个面向 JetBrains IDE 的终端/控制台增强插件，提供三大功能：</p>
             <ul>
               <li>文件跳转 — 将输出中的文件引用识别为可点击链接，支持短文件名、相对路径、绝对路径、行号和行范围，点击跳转到对应文件位置</li>
               <li>点击复制 — 结构化输出片段（方法调用、接口路径、点号链、字面量等）点击即复制到剪贴板</li>
