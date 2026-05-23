@@ -25,7 +25,9 @@
             class="io.github.q110.opencodeterminaltools.SendSelectionToOpenCodeAction"
             icon="/icons/send-selection.svg"
             text="Send Selection to OpenCode"
-            description="Send the current editor selection to the marked OpenCode terminal"/>
+            description="Send the current editor selection to the marked OpenCode terminal">
+            <keyboard-shortcut keymap="$default" first-keystroke="control alt COMMA"/>
+        </action>
         <action
             id="OpenCodeTerminalTools.SendPathToOpenCode"
             class="io.github.q110.opencodeterminaltools.SendPathToOpenCodeAction"
