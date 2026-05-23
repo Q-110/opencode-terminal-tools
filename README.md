@@ -1,6 +1,6 @@
 # Console Links
 
-Console Links 是一个 IntelliJ IDEA 插件，用于把 Terminal 或控制台输出里的文件引用转换成可点击链接，并提供 OpenCode 选区桥接能力。
+Console Links 是一个 IntelliJ IDEA 终端/控制台增强插件，提供文件跳转、点击复制、OpenCode 桥接三大功能。
 
 ## 功能
 
@@ -67,7 +67,6 @@ set EDITOR=%TEMP%\opencode-idea-bridge\opencode-editor.cmd
 
 ```text
 src/main/java/A.java:10-20
-
 <selected code>
 ```
 

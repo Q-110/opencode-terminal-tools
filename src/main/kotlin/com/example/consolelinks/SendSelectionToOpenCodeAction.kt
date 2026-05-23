@@ -48,7 +48,7 @@ class SendSelectionToOpenCodeAction : AnAction() {
         val startLine = document.getLineNumber(startOffset) + 1
         val endLine = document.getLineNumber(endOffsetForLine) + 1
         val filePath = displayPath(project, virtualFile)
-        val payload = "$filePath:$startLine-$endLine\n\n$selectedText"
+        val payload = "$filePath:$startLine-$endLine\n$selectedText\n"
 
         when (val result = OpenCodeBridgeService.getInstance(project).sendSelection(payload, event.dataContext)) {
             is OpenCodeBridgeService.BridgeResult.Success -> {
