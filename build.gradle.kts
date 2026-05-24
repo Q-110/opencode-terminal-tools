@@ -39,22 +39,33 @@ dependencies {
 }
 
 intellijPlatform {
+    publishing {
+        token.set(providers.environmentVariable("PUBLISH_TOKEN"))
+        channels.set(listOf("default"))
+    }
+
+    signing {
+        certificateChain.set(providers.environmentVariable("CERTIFICATE_CHAIN"))
+        privateKey.set(providers.environmentVariable("PRIVATE_KEY"))
+        password.set(providers.environmentVariable("PRIVATE_KEY_PASSWORD"))
+    }
+
     pluginConfiguration {
         id = "io.github.q110.opencodeterminaltools"
         name = "OpenCode Terminal Tools"
         version = project.version.toString()
         description = """
-            <p>OpenCode Terminal Tools 是一个面向 JetBrains IDE 的终端/控制台增强插件，提供三大功能：</p>
+            <p>OpenCode Terminal Tools enhances JetBrains IDE terminals and consoles with fast navigation, copy helpers, and OpenCode integration.</p>
             <ul>
-              <li>文件跳转 — 将输出中的文件引用识别为可点击链接，支持短文件名、相对路径、绝对路径、行号和行范围，点击跳转到对应文件位置</li>
-              <li>点击复制 — 结构化输出片段（方法调用、接口路径、点号链、字面量等）点击即复制到剪贴板</li>
-              <li>OpenCode 桥接 — 将编辑器选区、项目树文件/文件夹路径和编辑器标签页路径发送到 OpenCode TUI 输入区，并处理 @路径补全状态</li>
+              <li>File navigation: turns terminal and console file references into clickable links, including short file names, relative paths, absolute paths, line numbers, and line ranges.</li>
+              <li>Click-to-copy: recognizes structured output fragments such as method calls, API paths, dotted identifiers, string literals, numbers, and URLs, then copies them to the clipboard with one click.</li>
+              <li>OpenCode bridge: sends editor selections, project tree file or folder paths, and editor tab paths to the OpenCode TUI input area, including support for completing @path input state.</li>
             </ul>
         """.trimIndent()
         changeNotes = """
             <ul>
-              <li>右键菜单项改为代码动态注册，始终排在菜单最前面，不再受插件加载顺序影响</li>
-              <li>提高 OpenCode 行尾空格发送延迟，避免终端未处理完输入时空格丢失</li>
+              <li>Registers context menu actions dynamically so they stay at the top of the relevant menus regardless of plugin loading order.</li>
+              <li>Increases the OpenCode trailing-space send delay to avoid losing spaces while the terminal is still processing input.</li>
             </ul>
         """.trimIndent()
 
