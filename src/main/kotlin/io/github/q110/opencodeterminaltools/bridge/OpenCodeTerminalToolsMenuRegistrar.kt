@@ -6,9 +6,13 @@ import com.intellij.openapi.actionSystem.Constraints
 import com.intellij.openapi.actionSystem.DefaultActionGroup
 import com.intellij.openapi.startup.StartupActivity
 import com.intellij.openapi.project.DumbAware
+import com.intellij.openapi.components.service
+import io.github.q110.opencodeterminaltools.console.OpenCodeConsoleErrorInlayService
 
 class OpenCodeTerminalToolsMenuRegistrar : StartupActivity, DumbAware {
     override fun runActivity(project: com.intellij.openapi.project.Project) {
+        project.service<OpenCodeConsoleErrorInlayService>().initialize()
+
         val actionManager = ActionManager.getInstance()
 
         registerMenuFirst(actionManager, "EditorPopupMenu", "OpenCodeTerminalTools.SendSelectionToOpenCode")

@@ -1,6 +1,6 @@
 # OpenCode Terminal Tools
 
-OpenCode Terminal Tools 是一个 JetBrains IDE 插件，为终端和控制台输出提供三大增强功能：**文件跳转**、**点击复制** 和 **OpenCode 桥接**。
+OpenCode Terminal Tools 是一个 JetBrains IDE 插件，为终端和控制台输出提供四大增强功能：**文件跳转**、**点击复制**、**控制台错误发送** 和 **OpenCode 桥接**。
 
 ---
 
@@ -82,9 +82,34 @@ C:\Projects\demo\src\main\java\com\example\ExampleController.java:22
 
 ---
 
+### ⚠️ 控制台错误发送
+
+Run/Debug Console 中的 Java/JVM 异常首行会显示一个 OpenCode 图标，点击后自动将当前可见异常段发送到正在运行的 OpenCode。
+
+**发送范围：**
+
+- 从异常首行开始，例如 `Caused by: java.net.ConnectException: Connection timed out: connect`
+- 包含后续连续的 `at ...(...)` 调用栈行
+- 不包含 `... N common frames omitted`、`<N folded frames>`、`Disconnected from ...` 或 `Process finished ...`
+
+**发送格式：**
+
+```text
+控制台错误：
+-------
+<异常首行和连续 stack frames>
+-------
+```
+
+如果一段 stack trace 中有多个 `Caused by:`，每个异常段会独立显示图标，点击不同图标只发送对应异常段。
+
+可在 **Settings → Tools → OpenCode Terminal Tools** 中通过 **Enable error-to-OpenCode console icons** 开关启用或关闭。
+
+---
+
 ### 🔗 OpenCode 桥接
 
-将 IDE 编辑器中的选区或文件路径发送到正在运行的 [OpenCode](https://opencode.ai) TUI 输入区，支持 @路径补全状态的自动结束。
+将 IDE 编辑器中的选区、文件路径或控制台错误发送到正在运行的 [OpenCode](https://opencode.ai) TUI 输入区，支持 @路径补全状态的自动结束。
 
 #### 架构概览
 
@@ -155,6 +180,20 @@ src/main/java/A.java:10-20
 - **从编辑器标签页触发：** 右键标签页 → **Send File Path to OpenCode**
 - 以 `@displayPath` 格式发送，自动结束 OpenCode 的 @路径补全状态
 
+#### 发送控制台错误到 OpenCode
+
+- **从控制台触发：** 点击异常首行中的 OpenCode 图标
+- **数据格式：**
+
+```text
+控制台错误：
+-------
+<当前异常段>
+-------
+```
+
+插件会：识别异常段 → 写入桥接文件 → 切换到 OpenCode 终端 → 触发 `editor_open` 快捷键。
+
 #### 自定义 editor_open 快捷键
 
 插件默认按 `ctrl+x e`（OpenCode 默认快捷键）触发外部编辑器。如果修改了 OpenCode 的 `editor_open` 快捷键，需在 **Settings → Tools → OpenCode Terminal Tools** 中同步修改。
@@ -197,6 +236,7 @@ $env:OPENCODE_IDEA_REAL_EDITOR="code --wait"
 |------|-----------|---------|
 | Send Selection to OpenCode | `Ctrl+Alt+,` | 编辑器内快捷键 / 右键菜单 |
 | Send File Path to OpenCode | — | 项目视图 / 编辑器标签页右键菜单 |
+| Send Console Error to OpenCode | — | 控制台异常行图标 |
 | Start OpenCode Terminal | — | 工具栏按钮（Debugger.Console 图标） |
 | Mark as OpenCode Terminal | — | 终端标签页右键菜单 |
 
@@ -228,6 +268,10 @@ src/main/kotlin/io/github/q110/opencodeterminaltools/
 │
 ├── copy/                # 点击复制模块
 │   └── CopyTextHyperlinkInfo.kt           # 点击复制 Hyperlink
+│
+├── console/             # 控制台错误发送模块
+│   ├── ConsoleErrorBlockParser.kt         # Java/JVM 异常段解析
+│   └── OpenCodeConsoleErrorInlayService.kt # 控制台行内 OpenCode 图标
 │
 └── settings/            # 设置模块
     ├── OpenCodeTerminalToolsSettings.kt     # 配置持久化
@@ -291,7 +335,7 @@ src/main/kotlin/io/github/q110/opencodeterminaltools/
 | Kotlin | 2.2.21 |
 | JVM | 17 |
 | IntelliJ Platform Plugin | 2.12.0 |
-| 最低支持 IDE | 2024.2+ |
+| 最低支持 IDE | 2025.3+ |
 
 ---
 
@@ -300,7 +344,7 @@ src/main/kotlin/io/github/q110/opencodeterminaltools/
 | 项目 | 值 |
 |------|-----|
 | 插件 ID | `io.github.q110.opencodeterminaltools` |
-| 当前版本 | `1.8.1` |
+| 当前版本 | `1.9.0` |
 | Group | `io.github.q110` |
 | Vendor | `zibo` |
 | 许可证 | MIT |

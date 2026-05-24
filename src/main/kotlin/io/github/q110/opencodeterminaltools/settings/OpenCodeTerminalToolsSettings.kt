@@ -27,6 +27,7 @@ class OpenCodeTerminalToolsSettings : PersistentStateComponent<OpenCodeTerminalT
     class StateData {
         var fileLinksEnabled: Boolean = true
         var copyLinksEnabled: Boolean = true
+        var errorToOpenCodeIconsEnabled: Boolean = true
         var openCodeEditorOpenShortcut: String = "ctrl+x e"
     }
 

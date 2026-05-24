@@ -4,7 +4,7 @@ plugins {
 }
 
 group = "io.github.q110"
-version = "1.8.1"
+version = "1.9.0"
 
 kotlin {
     jvmToolchain(17)
@@ -55,17 +55,20 @@ intellijPlatform {
         name = "OpenCode Terminal Tools"
         version = project.version.toString()
         description = """
-            <p>OpenCode Terminal Tools enhances JetBrains IDE terminals and consoles with fast navigation, copy helpers, and OpenCode integration.</p>
+            <p>OpenCode Terminal Tools enhances JetBrains IDE terminals and consoles with fast navigation, copy helpers, console error sending, and OpenCode integration.</p>
             <ul>
               <li>File navigation: turns terminal and console file references into clickable links, including short file names, relative paths, absolute paths, line numbers, and line ranges.</li>
               <li>Click-to-copy: recognizes structured output fragments such as method calls, API paths, dotted identifiers, string literals, numbers, and URLs, then copies them to the clipboard with one click.</li>
+              <li>Console error sending: adds an inline OpenCode icon to Java/JVM exception lines and sends the current visible exception segment to OpenCode with one click.</li>
               <li>OpenCode bridge: sends editor selections, project tree file or folder paths, and editor tab paths to the OpenCode TUI input area, including support for completing @path input state.</li>
             </ul>
         """.trimIndent()
         changeNotes = """
             <ul>
-              <li>Registers context menu actions dynamically so they stay at the top of the relevant menus regardless of plugin loading order.</li>
-              <li>Increases the OpenCode trailing-space send delay to avoid losing spaces while the terminal is still processing input.</li>
+              <li>Adds inline OpenCode icons for Java/JVM console exception segments.</li>
+              <li>Sends only the current visible exception segment, including the exception line and consecutive stack frames.</li>
+              <li>Uses the Chinese payload title "控制台错误：" for console error sends.</li>
+              <li>Adds a settings toggle for error-to-OpenCode console icons.</li>
             </ul>
         """.trimIndent()
 
