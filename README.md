@@ -1,6 +1,6 @@
 # OpenCode Terminal Tools
 
-OpenCode Terminal Tools 是一个 JetBrains IDE 插件，为终端和控制台输出提供四大增强功能：**文件跳转**、**点击复制**、**控制台错误发送** 和 **OpenCode 桥接**。
+OpenCode Terminal Tools 是一个 JetBrains IDE 插件，为终端、控制台和 Commit 面板提供五类增强功能：**文件跳转**、**点击复制**、**控制台错误发送**、**OpenCode 桥接** 和 **中文提交信息生成**。
 
 ---
 
@@ -230,6 +230,30 @@ $env:OPENCODE_IDEA_REAL_EDITOR="code --wait"
 
 ---
 
+### 📝 生成中文提交信息
+
+Commit 面板工具栏会显示 **Generate Chinese Commit Message** 动作，点击后使用 OpenCode 根据当前 Commit 面板中已勾选的文件生成中文提交文案。
+
+**生成规则：**
+
+- 只分析 Commit 面板中已勾选的 tracked 文件和 unversioned 文件
+- tracked 文件会要求 OpenCode 通过 `git diff --no-color --no-ext-diff -- <已勾选路径>` 查看详情
+- unversioned 文件只允许读取已勾选文件清单中的文件
+- 生成结果使用中文 `- ` 分条，精简覆盖关键改动
+- 如果当前提交文案已有内容，会先询问是否替换
+
+**模型配置：**
+
+可在 **Settings → Tools → OpenCode Terminal Tools** 的 `Commit message model` 字段配置 OpenCode 的 `provider/model` 格式模型，例如：
+
+```text
+openai/gpt-4.1
+```
+
+留空时使用 OpenCode 默认模型。
+
+---
+
 ## ⌨️ 快捷键一览
 
 | 动作 | 默认快捷键 | 触发方式 |
@@ -237,6 +261,7 @@ $env:OPENCODE_IDEA_REAL_EDITOR="code --wait"
 | Send Selection to OpenCode | `Ctrl+Alt+,` | 编辑器内快捷键 / 右键菜单 |
 | Send File Path to OpenCode | — | 项目视图 / 编辑器标签页右键菜单 |
 | Send Console Error to OpenCode | — | 控制台异常行图标 |
+| Generate Chinese Commit Message | — | Commit 面板工具栏 |
 | Start OpenCode Terminal | — | 工具栏按钮（Debugger.Console 图标） |
 | Mark as OpenCode Terminal | — | 终端标签页右键菜单 |
 
@@ -253,6 +278,7 @@ src/main/kotlin/io/github/q110/opencodeterminaltools/
 │   ├── SendPathToOpenCodeAction.kt       # 发送路径 Action
 │   ├── MarkOpenCodeTerminalAction.kt     # 标记终端 Action
 │   ├── StartOpenCodeTerminalAction.kt    # 启动 OpenCode 终端 Action
+│   ├── GenerateCommitMessageAction.kt    # 生成中文提交文案 Action
 │   └── OpenCodeTerminalToolsMenuRegistrar.kt  # 菜单注册器
 │
 ├── filter/              # 终端输出过滤模块
@@ -344,7 +370,7 @@ src/main/kotlin/io/github/q110/opencodeterminaltools/
 | 项目 | 值 |
 |------|-----|
 | 插件 ID | `io.github.q110.opencodeterminaltools` |
-| 当前版本 | `1.9.0` |
+| 当前版本 | `1.10.0` |
 | Group | `io.github.q110` |
 | Vendor | `zibo` |
 | 许可证 | MIT |

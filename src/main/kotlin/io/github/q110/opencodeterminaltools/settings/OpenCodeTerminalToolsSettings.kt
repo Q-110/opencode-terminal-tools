@@ -29,6 +29,7 @@ class OpenCodeTerminalToolsSettings : PersistentStateComponent<OpenCodeTerminalT
         var copyLinksEnabled: Boolean = true
         var errorToOpenCodeIconsEnabled: Boolean = true
         var openCodeEditorOpenShortcut: String = "ctrl+x e"
+        var commitMessageModel: String = ""
     }
 
     companion object {

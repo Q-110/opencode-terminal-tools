@@ -4,6 +4,7 @@
     <vendor>zibo</vendor>
 
     <depends>com.intellij.modules.platform</depends>
+    <depends>com.intellij.modules.vcs</depends>
     <depends>org.jetbrains.plugins.terminal</depends>
     <depends optional="true" config-file="terminal-frontend.xml">intellij.terminal.frontend</depends>
 
@@ -51,6 +52,14 @@
             <add-to-group group-id="Terminal.OutputContextMenu" anchor="last"/>
             <add-to-group group-id="Terminal.PromptContextMenu" anchor="last"/>
             <add-to-group group-id="ToolWindowContextMenu" anchor="last"/>
+        </action>
+        <action
+            id="OpenCodeTerminalTools.GenerateCommitMessage"
+            class="io.github.q110.opencodeterminaltools.bridge.GenerateCommitMessageAction"
+            icon="/icons/send-selection.svg"
+            text="Generate Chinese Commit Message"
+            description="Generate a concise Chinese commit message from checked commit files">
+            <add-to-group group-id="ChangesView.CommitToolbar" anchor="after" relative-to-action="Vcs.MessageActionGroup"/>
         </action>
     </actions>
 </idea-plugin>

@@ -15,6 +15,7 @@ class OpenCodeTerminalToolsConfigurable : Configurable {
     private var copyLinksCheckBox: JBCheckBox? = null
     private var errorToOpenCodeIconsCheckBox: JBCheckBox? = null
     private var openCodeEditorOpenShortcutField: JBTextField? = null
+    private var commitMessageModelField: JBTextField? = null
     private var panel: JPanel? = null
 
     override fun getDisplayName(): String {
@@ -26,6 +27,7 @@ class OpenCodeTerminalToolsConfigurable : Configurable {
         val copyLinksCheckBox = JBCheckBox("Enable click-to-copy links")
         val errorToOpenCodeIconsCheckBox = JBCheckBox("Enable error-to-OpenCode console icons")
         val openCodeEditorOpenShortcutField = JBTextField()
+        val commitMessageModelField = JBTextField()
         val panel = JPanel(GridBagLayout())
         panel.border = JBUI.Borders.empty(12)
 
@@ -85,6 +87,17 @@ class OpenCodeTerminalToolsConfigurable : Configurable {
         panel.add(JLabel("Default is ctrl+x e. If tui.json changes editor_open, enter the matching shortcut here. You can also enter /editor."), constraints)
 
         constraints.gridy = 14
+        constraints.insets = JBUI.insetsTop(16)
+        panel.add(JLabel("Commit message model:"), constraints)
+
+        constraints.gridy = 15
+        constraints.insets = JBUI.insetsTop(4)
+        panel.add(commitMessageModelField, constraints)
+
+        constraints.gridy = 16
+        panel.add(JLabel("Optional. Use opencode provider/model format, for example openai/gpt-4.1. Leave empty to use opencode defaults."), constraints)
+
+        constraints.gridy = 17
         constraints.weighty = 1.0
         constraints.fill = GridBagConstraints.BOTH
         panel.add(JPanel(), constraints)
@@ -93,6 +106,7 @@ class OpenCodeTerminalToolsConfigurable : Configurable {
         this.copyLinksCheckBox = copyLinksCheckBox
         this.errorToOpenCodeIconsCheckBox = errorToOpenCodeIconsCheckBox
         this.openCodeEditorOpenShortcutField = openCodeEditorOpenShortcutField
+        this.commitMessageModelField = commitMessageModelField
         this.panel = panel
         return panel
     }
@@ -102,7 +116,8 @@ class OpenCodeTerminalToolsConfigurable : Configurable {
         return fileLinksCheckBox?.isSelected != settings.fileLinksEnabled ||
             copyLinksCheckBox?.isSelected != settings.copyLinksEnabled ||
             errorToOpenCodeIconsCheckBox?.isSelected != settings.errorToOpenCodeIconsEnabled ||
-            openCodeEditorOpenShortcutField?.text?.trim() != settings.openCodeEditorOpenShortcut
+            openCodeEditorOpenShortcutField?.text?.trim() != settings.openCodeEditorOpenShortcut ||
+            commitMessageModelField?.text?.trim() != settings.commitMessageModel
     }
 
     override fun apply() {
@@ -111,6 +126,7 @@ class OpenCodeTerminalToolsConfigurable : Configurable {
         settings.copyLinksEnabled = copyLinksCheckBox?.isSelected == true
         settings.errorToOpenCodeIconsEnabled = errorToOpenCodeIconsCheckBox?.isSelected == true
         settings.openCodeEditorOpenShortcut = openCodeEditorOpenShortcutField?.text?.trim()?.ifEmpty { "ctrl+x e" } ?: "ctrl+x e"
+        settings.commitMessageModel = commitMessageModelField?.text?.trim().orEmpty()
     }
 
     override fun reset() {
@@ -119,6 +135,7 @@ class OpenCodeTerminalToolsConfigurable : Configurable {
         copyLinksCheckBox?.isSelected = settings.copyLinksEnabled
         errorToOpenCodeIconsCheckBox?.isSelected = settings.errorToOpenCodeIconsEnabled
         openCodeEditorOpenShortcutField?.text = settings.openCodeEditorOpenShortcut
+        commitMessageModelField?.text = settings.commitMessageModel
     }
 
     override fun disposeUIResources() {
@@ -126,6 +143,7 @@ class OpenCodeTerminalToolsConfigurable : Configurable {
         copyLinksCheckBox = null
         errorToOpenCodeIconsCheckBox = null
         openCodeEditorOpenShortcutField = null
+        commitMessageModelField = null
         panel = null
     }
 }

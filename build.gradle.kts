@@ -4,7 +4,7 @@ plugins {
 }
 
 group = "io.github.q110"
-version = "1.9.0"
+version = "1.10.0"
 
 kotlin {
     jvmToolchain(17)
@@ -55,20 +55,20 @@ intellijPlatform {
         name = "OpenCode Terminal Tools"
         version = project.version.toString()
         description = """
-            <p>OpenCode Terminal Tools enhances JetBrains IDE terminals and consoles with fast navigation, copy helpers, console error sending, and OpenCode integration.</p>
+            <p>OpenCode Terminal Tools enhances JetBrains IDE terminals and consoles with fast navigation, copy helpers, console error sending, OpenCode integration, and Chinese commit message generation.</p>
             <ul>
               <li>File navigation: turns terminal and console file references into clickable links, including short file names, relative paths, absolute paths, line numbers, and line ranges.</li>
               <li>Click-to-copy: recognizes structured output fragments such as method calls, API paths, dotted identifiers, string literals, numbers, and URLs, then copies them to the clipboard with one click.</li>
               <li>Console error sending: adds an inline OpenCode icon to Java/JVM exception lines and sends the current visible exception segment to OpenCode with one click.</li>
               <li>OpenCode bridge: sends editor selections, project tree file or folder paths, and editor tab paths to the OpenCode TUI input area, including support for completing @path input state.</li>
+              <li>Commit message generation: adds a commit toolbar action that asks OpenCode to generate concise Chinese commit message bullets from the files checked in the Commit panel.</li>
             </ul>
         """.trimIndent()
         changeNotes = """
             <ul>
-              <li>Adds inline OpenCode icons for Java/JVM console exception segments.</li>
-              <li>Sends only the current visible exception segment, including the exception line and consecutive stack frames.</li>
-              <li>Uses the Chinese payload title "控制台错误：" for console error sends.</li>
-              <li>Adds a settings toggle for error-to-OpenCode console icons.</li>
+              <li>Adds a Commit toolbar action to generate concise Chinese commit message bullets with OpenCode.</li>
+              <li>Generates commit messages only from files checked in the Commit panel, including checked unversioned files.</li>
+              <li>Adds an optional Commit message model setting using the OpenCode provider/model format, such as openai/gpt-4.1.</li>
             </ul>
         """.trimIndent()
 
