@@ -300,7 +300,7 @@ src/main/kotlin/io/github/q110/opencodeterminaltools/
 | 项目 | 值 |
 |------|-----|
 | 插件 ID | `io.github.q110.opencodeterminaltools` |
-| 当前版本 | `1.8.0` |
+| 当前版本 | `1.8.1` |
 | Group | `io.github.q110` |
 | Vendor | `zibo` |
 | 许可证 | MIT |

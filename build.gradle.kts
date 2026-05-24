@@ -4,7 +4,7 @@ plugins {
 }
 
 group = "io.github.q110"
-version = "1.8.0"
+version = "1.8.1"
 
 kotlin {
     jvmToolchain(17)
@@ -70,7 +70,7 @@ intellijPlatform {
         """.trimIndent()
 
         ideaVersion {
-            sinceBuild = "242"
+            sinceBuild = "253"
         }
     }
 }
