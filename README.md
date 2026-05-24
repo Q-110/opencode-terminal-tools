@@ -241,6 +241,7 @@ Commit 面板工具栏会显示 **Generate Chinese Commit Message** 动作，点
 - unversioned 文件只允许读取已勾选文件清单中的文件
 - 生成结果使用中文 `- ` 分条，精简覆盖关键改动
 - 如果当前提交文案已有内容，会先询问是否替换
+- 生成结束后会自动删除本次生成创建的 OpenCode session，避免残留临时会话
 
 **模型配置：**
 
@@ -370,7 +371,7 @@ src/main/kotlin/io/github/q110/opencodeterminaltools/
 | 项目 | 值 |
 |------|-----|
 | 插件 ID | `io.github.q110.opencodeterminaltools` |
-| 当前版本 | `1.10.0` |
+| 当前版本 | `1.10.1` |
 | Group | `io.github.q110` |
 | Vendor | `zibo` |
 | 许可证 | MIT |

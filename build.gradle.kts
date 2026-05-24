@@ -4,7 +4,7 @@ plugins {
 }
 
 group = "io.github.q110"
-version = "1.10.0"
+version = "1.10.1"
 
 kotlin {
     jvmToolchain(17)
@@ -66,9 +66,9 @@ intellijPlatform {
         """.trimIndent()
         changeNotes = """
             <ul>
-              <li>Adds a Commit toolbar action to generate concise Chinese commit message bullets with OpenCode.</li>
-              <li>Generates commit messages only from files checked in the Commit panel, including checked unversioned files.</li>
-              <li>Adds an optional Commit message model setting using the OpenCode provider/model format, such as openai/gpt-4.1.</li>
+              <li>Automatically deletes the temporary OpenCode session created for Commit message generation after the run finishes.</li>
+              <li>Uses a unique session title for each Commit message generation run so only the current run is cleaned up.</li>
+              <li>Keeps Commit message generation results unaffected if session cleanup fails.</li>
             </ul>
         """.trimIndent()
 
