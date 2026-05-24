@@ -14,6 +14,7 @@ class OpenCodeTerminalToolsMenuRegistrar : StartupActivity, DumbAware {
         registerMenuFirst(actionManager, "EditorPopupMenu", "OpenCodeTerminalTools.SendSelectionToOpenCode")
         registerMenuFirst(actionManager, "ProjectViewPopupMenu", "OpenCodeTerminalTools.SendPathToOpenCode")
         registerMenuFirst(actionManager, "EditorTabPopupMenu", "OpenCodeTerminalTools.SendPathToOpenCode")
+        registerToolbarAction(actionManager, "OpenCodeTerminalTools.StartOpenCodeTerminal")
     }
 
     /** 以 Constraints.FIRST 插入菜单组最前面 */
@@ -21,6 +22,20 @@ class OpenCodeTerminalToolsMenuRegistrar : StartupActivity, DumbAware {
         val group = actionManager.getAction(menuId) as? DefaultActionGroup ?: return
         val action = actionManager.getAction(actionId) ?: return
 
+        if (group.getChildActionsOrStubs().any { it == action }) return
         group.addAction(action, Constraints.FIRST)
+    }
+
+    private fun registerToolbarAction(actionManager: ActionManager, actionId: String) {
+        val action = actionManager.getAction(actionId) ?: return
+        val group = toolbarGroup(actionManager) ?: return
+
+        if (group.getChildActionsOrStubs().any { it == action }) return
+        group.addAction(action, Constraints.LAST)
+    }
+
+    private fun toolbarGroup(actionManager: ActionManager): DefaultActionGroup? {
+        return actionManager.getAction("MainToolbarRight") as? DefaultActionGroup
+            ?: actionManager.getAction("MainToolBar") as? DefaultActionGroup
     }
 }

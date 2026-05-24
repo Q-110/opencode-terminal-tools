@@ -36,6 +36,12 @@
             text="Send File Path to OpenCode"
             description="Send the selected repository-relative path to the marked OpenCode terminal"/>
         <action
+            id="OpenCodeTerminalTools.StartOpenCodeTerminal"
+            class="io.github.q110.opencodeterminaltools.bridge.StartOpenCodeTerminalAction"
+            icon="/icons/send-selection.svg"
+            text="Start OpenCode Terminal"
+            description="Open a new terminal and run opencode with the OpenCode bridge environment"/>
+        <action
             id="OpenCodeTerminalTools.MarkOpenCodeTerminal"
             class="io.github.q110.opencodeterminaltools.bridge.MarkOpenCodeTerminalAction"
             icon="/icons/send-selection.svg"

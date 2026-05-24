@@ -4,6 +4,7 @@ import com.intellij.notification.NotificationType
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.wm.IdeFocusManager
 import com.intellij.openapi.wm.ToolWindowManager
+import com.intellij.terminal.frontend.toolwindow.TerminalToolWindowTabsManager
 import com.intellij.ui.content.Content
 import io.github.q110.opencodeterminaltools.bridge.OpenCodeBridgeService.BridgeResult
 import java.awt.Component
@@ -15,7 +16,7 @@ import javax.swing.Timer
 class FrontendTerminalHelper(
     private val project: Project
 ) {
-    private val tabsManagerClass = loadFrontendClass(TABS_MANAGER_CLASS_NAME)
+    private val tabsManager = TerminalToolWindowTabsManager.getInstance(project)
 
     fun selectedTerminal(): Any? {
         val selectedContent = ToolWindowManager.getInstance(project)
@@ -25,6 +26,54 @@ class FrontendTerminalHelper(
     }
 
     fun allTerminals(): List<Any> = tabs()
+
+    fun allTerminalNames(): List<String> {
+        return tabs().mapNotNull { contentOf(it)?.displayName }
+    }
+
+    fun createOpenCodeTerminal(tabName: String, workingDirectory: String): Any {
+        return tabsManager.createTabBuilder()
+            .workingDirectory(workingDirectory)
+            .tabName(tabName)
+            .requestFocus(true)
+            .deferSessionStartUntilUiShown(false)
+            .createTab()
+    }
+
+    fun runCommand(tab: Any, command: String): BridgeResult {
+        val content = contentOf(tab)
+            ?: return BridgeResult.Error("Invalid frontend terminal tab.")
+        val view = viewOf(tab)
+            ?: return BridgeResult.Error("Invalid frontend terminal view.")
+        val toolWindow = ToolWindowManager.getInstance(project).getToolWindow(TERMINAL_TOOL_WINDOW_ID)
+            ?: return BridgeResult.Error("Terminal tool window was not found.")
+
+        toolWindow.activate(Runnable {
+            toolWindow.contentManager.setSelectedContentCB(content, true, true)
+                .doWhenProcessed(Runnable {
+                    val focusComponent = preferredFocusableComponent(view)
+                    if (focusComponent == null) {
+                        OpenCodeBridgeService.notify(project, "Cannot focus the OpenCode terminal input component.", NotificationType.WARNING)
+                        return@Runnable
+                    }
+                    IdeFocusManager.getInstance(project)
+                        .requestFocusInProject(focusComponent, project)
+                        .doWhenDone(Runnable {
+            try {
+                sendText(view, command)
+                scheduleEnter(view, focusComponent, false, "Started OpenCode Terminal (frontend-api)")
+                            } catch (exception: Throwable) {
+                                OpenCodeBridgeService.notify(project, "Failed to start OpenCode: ${exception.message}", NotificationType.WARNING)
+                            }
+                        })
+                        .doWhenRejected(Runnable {
+                            OpenCodeBridgeService.notify(project, "Cannot focus the OpenCode terminal input component.", NotificationType.WARNING)
+                        })
+                })
+        }, true, true)
+
+        return BridgeResult.Scheduled
+    }
 
     fun isTabExists(tab: Any): Boolean {
         return tabs().any { it == tab }
@@ -65,14 +114,7 @@ class FrontendTerminalHelper(
     }
 
     private fun tabs(): List<Any> {
-        val manager = tabsManager()
-        val rawTabs = tabsManagerClass.getMethod("getTabs").invoke(manager) as? Iterable<*> ?: return emptyList()
-        return rawTabs.filterNotNull()
-    }
-
-    private fun tabsManager(): Any {
-        return tabsManagerClass.getMethod("getInstance", Project::class.java).invoke(null, project)
-            ?: throw IllegalStateException("Frontend terminal tabs manager is not available.")
+        return tabsManager.tabs
     }
 
     private fun sendEditorCommand(
@@ -92,7 +134,7 @@ class FrontendTerminalHelper(
             }
         }
         if (isCommand) {
-            scheduleEnter(view, focusComponent, settleAtLineEnd)
+                scheduleEnter(view, focusComponent, settleAtLineEnd)
         } else if (settleAtLineEnd) {
             scheduleLineEndSpace(view, focusComponent, true)
         } else {
@@ -100,7 +142,12 @@ class FrontendTerminalHelper(
         }
     }
 
-    private fun scheduleEnter(view: Any, focusComponent: JComponent, settleAtLineEnd: Boolean) {
+    private fun scheduleEnter(
+        view: Any,
+        focusComponent: JComponent,
+        settleAtLineEnd: Boolean,
+        successMessage: String = "Sent to OpenCode"
+    ) {
         val timer = Timer(100) {
             try {
                 IdeFocusManager.getInstance(project)
@@ -110,7 +157,7 @@ class FrontendTerminalHelper(
                         if (settleAtLineEnd) {
                             scheduleLineEndSpace(view, focusComponent, true)
                         } else {
-                            OpenCodeBridgeService.notify(project, "Sent to OpenCode", NotificationType.INFORMATION)
+                            OpenCodeBridgeService.notify(project, successMessage, NotificationType.INFORMATION)
                         }
                     })
                     .doWhenRejected(Runnable {
@@ -222,11 +269,6 @@ class FrontendTerminalHelper(
 
     companion object {
         private const val TERMINAL_TOOL_WINDOW_ID = "Terminal"
-        private const val TABS_MANAGER_CLASS_NAME = "com.intellij.terminal.frontend.toolwindow.TerminalToolWindowTabsManager"
         private const val LINE_END_SPACE = "\u0005 "
-
-        private fun loadFrontendClass(name: String): Class<*> {
-            return Class.forName(name)
-        }
     }
 }

@@ -1,85 +1,144 @@
 # OpenCode Terminal Tools
 
-OpenCode Terminal Tools 是一个 JetBrains IDE 终端/控制台增强插件，提供文件跳转、点击复制、OpenCode 桥接三大功能。
+OpenCode Terminal Tools 是一个 JetBrains IDE 插件，为终端和控制台输出提供三大增强功能：**文件跳转**、**点击复制** 和 **OpenCode 桥接**。
 
-## 功能
+---
 
-- 文件跳转：支持 `FileName.java:22`、`src/main/java/A.java:10-20` 等格式，点击后跳到对应文件和行号。
-- 行范围：支持 `10-20` 这类范围，跳转后选中对应行。
-- 路径解析：支持文件名、相对路径、Windows 绝对路径、Unix 绝对路径。
-- 点击复制：对常见结构化文本片段生成复制链接。
-- 设置页：`Settings -> Tools -> OpenCode Terminal Tools` 可开关文件跳转链接和点击复制链接。
-- OpenCode 桥接：把 IDE 编辑器当前选区发送到正在运行的 OpenCode TUI 输入区。
+## 功能详解
 
-## 支持的文件引用格式
+### 📄 文件跳转
 
-```text
+将终端输出中的文件引用自动识别为可点击超链接，点击后跳转到 IDE 编辑器中的对应文件位置，支持行号和行范围选中。
+
+**支持的文件引用格式：**
+
+```
+# 仅文件名
 ExampleController.java
+
+# 文件名 + 行号
 ExampleController.java:22
+
+# 文件名 + 行范围
 ExampleController.java:22-30
+
+# 相对路径
 src/main/java/com/example/ExampleController.java:22
+
+# 相对路径（带 ./ 或 ../）
 ./src/main/java/com/example/ExampleController.java:22-30
 ../module/src/main/java/com/example/ExampleController.java:22
+
+# Windows 绝对路径
 C:\Projects\demo\src\main\java\com\example\ExampleController.java:22
+
+# Unix 绝对路径
 /projects/demo/src/main/java/com/example/ExampleController.java:22
+
+# @路径引用（用于 OpenCode 桥接补全状态）
+@src/main/java/com/example/ExampleController.java:10
 ```
 
-路径匹配主要面向常见无空格控制台输出，暂不保证带空格路径都能识别。
+**路径解析规则：**
 
-## OpenCode 选区桥接
+- 优先以路径后缀匹配项目文件
+- 支持的文件扩展名：`java`, `kt`, `kts`, `js`, `jsx`, `ts`, `tsx`, `vue`, `xml`, `html`, `css`, `scss`, `yml`, `yaml`, `properties`, `sql`, `md`
+- @路径引用优先级更高，用于匹配 OpenCode 补全状态的精确路径
 
-插件可以把 IDE 编辑器中选中的代码写入桥接文件，并自动触发 OpenCode 的 `editor_open`，让 OpenCode 通过 `EDITOR` 脚本把选区内容合并回 TUI 输入区。
+**同名文件智能选择：**
 
-### 使用步骤
+当多个文件匹配同一引用时，插件根据路径特征打分排序：
 
-1. 在 IDE 终端中启动 OpenCode。
-2. 启动 OpenCode 前配置 `EDITOR` 环境变量。
-3. 在 OpenCode 所在 Terminal 标签页执行 `Mark as OpenCode Terminal`。
-4. 在编辑器中选中代码。
-5. 执行 `Send Selection to OpenCode`。
-6. 插件会激活 Terminal、聚焦输入组件，并触发配置的 `editor_open`。
+| 路径特征 | 分值 |
+|---------|------|
+| 包含 `src/main/` | +80 |
+| 包含 `src/test/` | -40 |
+| 包含 `build/` / `target/` / `out/` | -80 |
+| 包含 `templates/` | +30 |
+| 包含 `static/` | +20 |
 
-### Windows EDITOR 配置
+首选文件自动跳转；若仍有多个候选，弹出选择对话框供用户手动选取。
 
-PowerShell：
+---
+
+### 📋 点击复制
+
+终端输出中的结构化文本片段会被识别为可点击链接，点击后自动复制到系统剪贴板，并在链接上方显示 **"已复制"** 提示（持续 700ms）。
+
+**支持的复制模式（按优先级排序）：**
+
+| 模式 | 示例 |
+|------|------|
+| 双花括号 `{{...}}` | `{{value}}` |
+| 双方括号 `[[...]]` | `[[value]]` |
+| 函数调用 | `funcName(arg)` |
+| URL | `https://example.com/path` |
+| 点号链 | `com.example.service.UserService` |
+| 引号字符串 | `"value"`、`'value'` |
+| 标识符 | `myVariable`、`CONSTANT_NAME` |
+| 数字 | `42`、`3.14`、`0xFF` |
+
+点击复制链接不会占用文件跳转链接的区间，两者互不干扰。
+
+---
+
+### 🔗 OpenCode 桥接
+
+将 IDE 编辑器中的选区或文件路径发送到正在运行的 [OpenCode](https://opencode.ai) TUI 输入区，支持 @路径补全状态的自动结束。
+
+#### 架构概览
+
+```
+IDE 编辑器选区
+      │
+      ▼
+写入桥接文件 (%TEMP%\opencode-idea-bridge\)
+      │
+      ▼
+触发 editor_open 快捷键 → OpenCode 读取临时编辑文件
+      │
+      ▼
+桥接脚本合并选区内容 → OpenCode TUI 输入区
+```
+
+桥接使用文件系统作为通信媒介，`EDITOR` 环境变量指向桥接脚本 `opencode-editor.cmd`/`.ps1`。
+
+#### 快速开始（推荐）
+
+1. 点击 IDE 工具栏的 **Start OpenCode Terminal** 按钮
+2. 插件自动创建新终端标签页、写入桥接脚本、设置 `EDITOR` 环境变量后启动 `opencode`
+3. 在编辑器中选中代码，按 **`Ctrl+Alt+,`** 发送到 OpenCode
+
+> 一键启动会自动处理 `EDITOR` 环境变量配置，无需手动设置。已存在的终端的标签页名依次为 `OpenCode`、`OpenCode (2)`、`OpenCode (3)`...
+
+#### 手动配置
+
+如果已手动启动 OpenCode，需先配置 `EDITOR` 环境变量再启动：
+
+**PowerShell：**
 
 ```powershell
 $env:EDITOR="$env:TEMP\opencode-idea-bridge\opencode-editor.cmd"
 ```
 
-cmd：
+**CMD：**
 
 ```cmd
 set EDITOR=%TEMP%\opencode-idea-bridge\opencode-editor.cmd
 ```
 
-这些环境变量必须在启动 `opencode` 之前设置。已经运行中的 OpenCode 不会读取后来才设置的环境变量。
+> ⚠️ 环境变量必须在启动 `opencode` **之前**设置，已运行的 OpenCode 不会读取之后设置的环境变量。
 
-### OpenCode editor_open 快捷键
+**手动启动后的操作：**
 
-插件默认按 OpenCode 的默认 `editor_open` 快捷键 `ctrl+x e` 触发外部编辑器，这样 OpenCode 输入框已有内容会先进入临时编辑文件，再由桥接脚本和选区内容换行拼接。
+1. 在 OpenCode 所在的终端标签页右键 → **Mark as OpenCode Terminal**
+2. 在编辑器中选中代码，按 **`Ctrl+Alt+,`** 发送到 OpenCode
 
-如果你在 OpenCode 的 `tui.json` 中把 `editor_open` 改成了其他快捷键，需要在 `Settings -> Tools -> OpenCode Terminal Tools` 中同步修改 `OpenCode editor_open 快捷键`，例如：
+#### 发送选区到 OpenCode
 
-```text
-f4
-```
-
-如需使用旧流程，可以填写：
-
-```text
-/editor
-```
-
-插件会自动生成：
-
-```text
-%TEMP%\opencode-idea-bridge\latest-selection.md
-%TEMP%\opencode-idea-bridge\opencode-editor.ps1
-%TEMP%\opencode-idea-bridge\opencode-editor.cmd
-```
-
-选区 payload 格式固定为：
+- **快捷键：** `Ctrl+Alt+,`
+- **从菜单触发：** 编辑器右键 → **Send Selection to OpenCode**
+- **数据格式：**
 
 ```text
 src/main/java/A.java:10-20
@@ -88,37 +147,130 @@ src/main/java/A.java:10-20
 -------
 ```
 
-`EDITOR` 必须指向桥接脚本，不要直接指向 `code`、`notepad` 或其他真实编辑器。桥接脚本会读取 `latest-selection.md`，把选区内容合并进 OpenCode 传入的临时编辑文件，然后退出。
+插件会：写入选区文件 → 切换到终端标签页 → 聚焦输入框 → 触发 `editor_open` 快捷键。
 
-如果希望合并选区后仍然打开真实外部编辑器，可以额外设置：
+#### 发送文件/文件夹路径到 OpenCode
+
+- **从项目视图触发：** 右键文件/文件夹 → **Send File/Folder Path to OpenCode**
+- **从编辑器标签页触发：** 右键标签页 → **Send File Path to OpenCode**
+- 以 `@displayPath` 格式发送，自动结束 OpenCode 的 @路径补全状态
+
+#### 自定义 editor_open 快捷键
+
+插件默认按 `ctrl+x e`（OpenCode 默认快捷键）触发外部编辑器。如果修改了 OpenCode 的 `editor_open` 快捷键，需在 **Settings → Tools → OpenCode Terminal Tools** 中同步修改。
+
+在设置页的 `OpenCode editor_open shortcut` 字段填入新的快捷键，例如：
+
+```text
+f4
+```
+
+如需使用旧版 `/editor` 流程，填写：
+
+```text
+/editor
+```
+
+#### 桥接脚本说明
+
+插件自动生成以下桥接文件到 `%TEMP%\opencode-idea-bridge\`：
+
+| 文件 | 说明 |
+|------|------|
+| `latest-selection.md` | 选区内荣 payload 文件 |
+| `opencode-editor.ps1` | PowerShell 桥接脚本 |
+| `opencode-editor.cmd` | CMD 桥接脚本 |
+
+> `EDITOR` 必须指向桥接脚本，不要直接指向 `code`、`notepad` 或其他真实编辑器。桥接脚本会读取 `latest-selection.md`，将选区内容合并进 OpenCode 传入的临时编辑文件后退出。
+
+如果希望合并选区后仍然打开真实外部编辑器，可额外设置：
 
 ```powershell
 $env:OPENCODE_IDEA_REAL_EDITOR="code --wait"
 ```
 
-或：
+---
 
-```powershell
-$env:OPENCODE_IDEA_REAL_EDITOR="notepad"
+## ⌨️ 快捷键一览
+
+| 动作 | 默认快捷键 | 触发方式 |
+|------|-----------|---------|
+| Send Selection to OpenCode | `Ctrl+Alt+,` | 编辑器内快捷键 / 右键菜单 |
+| Send File Path to OpenCode | — | 项目视图 / 编辑器标签页右键菜单 |
+| Start OpenCode Terminal | — | 工具栏按钮（Debugger.Console 图标） |
+| Mark as OpenCode Terminal | — | 终端标签页右键菜单 |
+
+## 🏗️ 项目架构
+
+```
+src/main/kotlin/io/github/q110/opencodeterminaltools/
+│
+├── bridge/              # OpenCode 桥接模块
+│   ├── OpenCodeBridgeService.kt          # 核心服务（项目级 Service）
+│   ├── FrontendTerminalHelper.kt         # 新版终端 API (2025.3+)
+│   ├── LegacyReworkedTerminalHelper.kt   # 旧版 Reworked 终端 (2025.1-2025.2)
+│   ├── SendSelectionToOpenCodeAction.kt  # 发送选区 Action
+│   ├── SendPathToOpenCodeAction.kt       # 发送路径 Action
+│   ├── MarkOpenCodeTerminalAction.kt     # 标记终端 Action
+│   ├── StartOpenCodeTerminalAction.kt    # 启动 OpenCode 终端 Action
+│   └── OpenCodeTerminalToolsMenuRegistrar.kt  # 菜单注册器
+│
+├── filter/              # 终端输出过滤模块
+│   ├── OpenCodeTerminalToolsFilter.kt     # 核心 Filter（四阶段解析）
+│   ├── OpenCodeTerminalToolsFilterProvider.kt
+│   ├── FilterPatterns.kt                  # 正则表达式定义
+│   └── PathUtils.kt                       # 路径工具函数
+│
+├── jump/                # 文件/文件夹跳转模块
+│   ├── FileReferenceHyperlinkInfo.kt      # 文件跳转 Hyperlink
+│   ├── FolderReferenceHyperlinkInfo.kt    # 文件夹跳转 Hyperlink
+│   └── FileChoiceDialog.kt               # 同名文件选择弹窗
+│
+├── copy/                # 点击复制模块
+│   └── CopyTextHyperlinkInfo.kt           # 点击复制 Hyperlink
+│
+└── settings/            # 设置模块
+    ├── OpenCodeTerminalToolsSettings.kt     # 配置持久化
+    └── OpenCodeTerminalToolsConfigurable.kt # 设置页面 UI
 ```
 
-## 构建与运行
+**终端兼容层设计：**
 
-1. 默认使用 IntelliJ IDEA Ultimate 2025.3 构建。可通过 `-P` 参数切换 IDE 类型和版本：
+- **Frontend** (IDE 2025.3+)：使用官方 `TerminalToolWindowTabsManager` API，最稳定
+- **Legacy Reworked** (IDE 2025.1~2025.2)：通过反射调用 `TerminalToolWindowManager.createNewTab()`
+- **Classic** (回退)：使用 `ShellTerminalWidget` + TTY Connector 操作
+
+插件无主入口类，通过 `plugin.xml` 中 `postStartupActivity` 注册初始化，Service 通过 `@Service` 注解懒加载。
+
+---
+
+## 🔧 构建与运行
+
+### 环境要求
+
+- IntelliJ IDEA Ultimate 2025.3（默认）或通过 `-P` 参数切换 IDE 类型和版本
+- JDK 17
+- Gradle（通过项目自带的 `gradlew`/`gradlew.bat`）
+
+### 常用命令
 
 ```powershell
-# 默认（IntelliJ IDEA Ultimate 2025.3）
+# 默认（IntelliJ IDEA Ultimate 2025.3）运行 IDE 实例
 .\gradlew.bat runIde
 
 # 指定版本和 IDE 类型
 .\gradlew.bat buildPlugin -PplatformVersion=2025.3 -PplatformType=IU
+
+# 打包插件
+.\gradlew.bat buildPlugin
 ```
 
-支持的 IDE 类型：
+### IDE 类型参数
 
 | 参数值 | IDE |
 |--------|-----|
-| `IU` / `IC` | IntelliJ IDEA Ultimate / Community |
+| `IU` | IntelliJ IDEA Ultimate |
+| `IC` | IntelliJ IDEA Community |
 | `PY` | PyCharm |
 | `WS` | WebStorm |
 | `GO` | GoLand |
@@ -128,31 +280,33 @@ $env:OPENCODE_IDEA_REAL_EDITOR="notepad"
 | `CL` | CLion |
 | `DG` | DataGrip |
 
-2. 打包插件：
+打包产物生成在 `build/distributions/` 目录。
 
-```powershell
-.\gradlew.bat buildPlugin
-```
+---
 
-插件包会生成在：
-
-```text
-build/distributions/
-```
-
-## 技术栈
+## 📊 技术栈
 
 | 项目 | 版本 |
-| --- | --- |
+|------|------|
 | Kotlin | 2.2.21 |
 | JVM | 17 |
 | IntelliJ Platform Plugin | 2.12.0 |
 | 最低支持 IDE | 2024.2+ |
 
-## 插件信息
+---
+
+## ℹ️ 插件信息
 
 | 项目 | 值 |
-| --- | --- |
-| Plugin ID | `io.github.q110.opencodeterminaltools` |
+|------|-----|
+| 插件 ID | `io.github.q110.opencodeterminaltools` |
+| 当前版本 | `1.7.2` |
 | Group | `io.github.q110` |
 | Vendor | `zibo` |
+| 许可证 | MIT |
+
+---
+
+## 许可证
+
+本项目基于 MIT License 开源。详见 [LICENSE](./LICENSE) 文件。

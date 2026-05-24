@@ -1,4 +1,3 @@
-// 设置面板 — Settings / Tools / OpenCode Terminal Tools
 package io.github.q110.opencodeterminaltools.settings
 
 import com.intellij.openapi.options.Configurable
@@ -21,10 +20,9 @@ class OpenCodeTerminalToolsConfigurable : Configurable {
         return "OpenCode Terminal Tools"
     }
 
-    /** 构建 GridBagLayout 布局的设置面板 */
     override fun createComponent(): JComponent {
-        val fileLinksCheckBox = JBCheckBox("启用文件跳转链接")
-        val copyLinksCheckBox = JBCheckBox("启用点击复制链接")
+        val fileLinksCheckBox = JBCheckBox("Enable file navigation links")
+        val copyLinksCheckBox = JBCheckBox("Enable click-to-copy links")
         val openCodeEditorOpenShortcutField = JBTextField()
         val panel = JPanel(GridBagLayout())
         panel.border = JBUI.Borders.empty(12)
@@ -43,35 +41,45 @@ class OpenCodeTerminalToolsConfigurable : Configurable {
 
         constraints.gridy = 2
         constraints.insets = JBUI.insetsTop(4)
-        panel.add(JLabel("关闭后，新输出的控制台文本将不再生成对应类型的链接。"), constraints)
+        panel.add(JLabel("When disabled, newly printed terminal text will not receive matching links."), constraints)
 
         constraints.gridy = 3
         constraints.insets = JBUI.insetsTop(16)
-        panel.add(JLabel("OpenCode 桥接 EDITOR 配置："), constraints)
+        panel.add(JLabel("OpenCode bridge EDITOR setup:"), constraints)
 
         constraints.gridy = 4
         constraints.insets = JBUI.insetsTop(4)
-        panel.add(JLabel("PowerShell: \$env:EDITOR=\"\$env:TEMP\\opencode-idea-bridge\\opencode-editor.cmd\""), constraints)
+        panel.add(JLabel("Start OpenCode Terminal sets EDITOR automatically before running opencode."), constraints)
 
         constraints.gridy = 5
-        panel.add(JLabel("cmd: set EDITOR=%TEMP%\\opencode-idea-bridge\\opencode-editor.cmd"), constraints)
+        panel.add(JLabel("IDEA 2025.1 defaults to Classic Terminal; Reworked 2025 is Beta and must be selected in IDE settings."), constraints)
 
         constraints.gridy = 6
-        constraints.insets = JBUI.insetsTop(4)
-        panel.add(JLabel("可选真实编辑器: \$env:OPENCODE_IDEA_REAL_EDITOR=\"code --wait\""), constraints)
+        panel.add(JLabel("Reworked startup is reliable on 2025.3+; 2025.1/2025.2 use best-effort internal APIs and may fall back to Classic."), constraints)
 
         constraints.gridy = 7
-        constraints.insets = JBUI.insetsTop(16)
-        panel.add(JLabel("OpenCode editor_open 快捷键："), constraints)
+        constraints.insets = JBUI.insetsTop(8)
+        panel.add(JLabel("PowerShell: \$env:EDITOR=\"\$env:TEMP\\opencode-idea-bridge\\opencode-editor.cmd\""), constraints)
 
         constraints.gridy = 8
         constraints.insets = JBUI.insetsTop(4)
-        panel.add(openCodeEditorOpenShortcutField, constraints)
+        panel.add(JLabel("cmd: set EDITOR=%TEMP%\\opencode-idea-bridge\\opencode-editor.cmd"), constraints)
 
         constraints.gridy = 9
-        panel.add(JLabel("默认 OpenCode 配置填写 ctrl+x e；如果你在 tui.json 中修改，则填写对应快捷键。也可以填写 /editor 使用旧流程。"), constraints)
+        panel.add(JLabel("Optional real editor: \$env:OPENCODE_IDEA_REAL_EDITOR=\"code --wait\""), constraints)
 
         constraints.gridy = 10
+        constraints.insets = JBUI.insetsTop(16)
+        panel.add(JLabel("OpenCode editor_open shortcut:"), constraints)
+
+        constraints.gridy = 11
+        constraints.insets = JBUI.insetsTop(4)
+        panel.add(openCodeEditorOpenShortcutField, constraints)
+
+        constraints.gridy = 12
+        panel.add(JLabel("Default is ctrl+x e. If tui.json changes editor_open, enter the matching shortcut here. You can also enter /editor."), constraints)
+
+        constraints.gridy = 13
         constraints.weighty = 1.0
         constraints.fill = GridBagConstraints.BOTH
         panel.add(JPanel(), constraints)
@@ -90,7 +98,6 @@ class OpenCodeTerminalToolsConfigurable : Configurable {
             openCodeEditorOpenShortcutField?.text?.trim() != settings.openCodeEditorOpenShortcut
     }
 
-    /** 同步 UI 值到持久化状态 */
     override fun apply() {
         val settings = OpenCodeTerminalToolsSettings.getInstance().getState()
         settings.fileLinksEnabled = fileLinksCheckBox?.isSelected == true
@@ -98,7 +105,6 @@ class OpenCodeTerminalToolsConfigurable : Configurable {
         settings.openCodeEditorOpenShortcut = openCodeEditorOpenShortcutField?.text?.trim()?.ifEmpty { "ctrl+x e" } ?: "ctrl+x e"
     }
 
-    /** 从持久化状态恢复 UI */
     override fun reset() {
         val settings = OpenCodeTerminalToolsSettings.getInstance().getState()
         fileLinksCheckBox?.isSelected = settings.fileLinksEnabled

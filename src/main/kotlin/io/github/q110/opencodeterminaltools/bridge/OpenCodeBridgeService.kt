@@ -3,19 +3,28 @@ package io.github.q110.opencodeterminaltools.bridge
 
 import com.intellij.notification.NotificationGroupManager
 import com.intellij.notification.NotificationType
+import com.intellij.openapi.Disposable
 import com.intellij.openapi.actionSystem.DataContext
+import com.intellij.openapi.application.ApplicationInfo
+import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.components.service
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.util.Disposer
+import com.intellij.openapi.util.SystemInfo
+import com.intellij.openapi.wm.ToolWindow
 import com.intellij.terminal.JBTerminalWidget
 import com.intellij.terminal.ui.TerminalWidget
 import io.github.q110.opencodeterminaltools.settings.OpenCodeTerminalToolsSettings
+import org.jetbrains.plugins.terminal.ShellStartupOptions
+import org.jetbrains.plugins.terminal.ShellTerminalWidget
 import org.jetbrains.plugins.terminal.TerminalToolWindowManager
 import java.io.IOException
 import java.nio.charset.StandardCharsets
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.StandardOpenOption
+import java.util.concurrent.atomic.AtomicBoolean
 import javax.swing.Timer
 
 @Service(Service.Level.PROJECT)
@@ -31,6 +40,9 @@ class OpenCodeBridgeService(
     } catch (_: Throwable) {
         null
     }
+
+    private val legacyReworkedTerminalHelper = LegacyReworkedTerminalHelper(project)
+    private val openCodeTerminalStartInProgress = AtomicBoolean(false)
 
     /** 标记当前终端：右键菜单 → 当前终端 → 选中标签页 → 唯一可用终端 */
     fun markTerminal(dataContext: DataContext): Boolean {
@@ -58,12 +70,194 @@ class OpenCodeBridgeService(
         }
     }
 
-    /** 阶段一：在 %TEMP%\opencode-idea-bridge\ 下写入选区文件及桥接脚本 */
+    /** 创建新的 OpenCode terminal，并在 shell 启动前注入桥接 EDITOR 环境变量 */
+    fun startOpenCodeTerminal(): BridgeResult {
+        return try {
+            ensureBridgeScripts()
+            if (!openCodeTerminalStartInProgress.compareAndSet(false, true)) {
+                return BridgeResult.Scheduled
+            }
+            scheduleOpenCodeTerminalStart()
+            BridgeResult.Scheduled
+        } catch (exception: IOException) {
+            BridgeResult.Error("Failed to write OpenCode bridge scripts: ${exception.message}")
+        }
+    }
+
+    private fun scheduleOpenCodeTerminalStart() {
+        ApplicationManager.getApplication().invokeLater {
+            if (project.isDisposed) {
+                openCodeTerminalStartInProgress.set(false)
+                return@invokeLater
+            }
+
+            val terminalToolWindowManager = TerminalToolWindowManager.getInstance(project)
+            val toolWindow = terminalToolWindow(terminalToolWindowManager)
+            if (toolWindow == null) {
+                openCodeTerminalStartInProgress.set(false)
+                notify(project, "Terminal tool window was not found.", NotificationType.WARNING)
+                return@invokeLater
+            }
+
+            toolWindow.activate(Runnable {
+                ApplicationManager.getApplication().invokeLater {
+                    try {
+                        val tabName = nextOpenCodeTabName()
+                        val workingDirectory = openCodeWorkingDirectory()
+                        val result = startFrontendOpenCodeTerminal(tabName, workingDirectory)
+                            ?: startLegacyReworkedOpenCodeTerminal(tabName, workingDirectory)
+                            ?: run {
+                                notifyLegacyReworkedFallbackIfNeeded()
+                                startClassicOpenCodeTerminal(tabName, workingDirectory)
+                            }
+                        if (result is BridgeResult.Error) {
+                            notify(project, result.message, NotificationType.WARNING)
+                        }
+                    } finally {
+                        openCodeTerminalStartInProgress.set(false)
+                    }
+                }
+            }, true, true)
+        }
+    }
+
+    private fun startFrontendOpenCodeTerminal(tabName: String, workingDirectory: String): BridgeResult? {
+        val helper = frontendHelper ?: return null
+        return try {
+            val tab = helper.createOpenCodeTerminal(tabName, workingDirectory)
+            markedTerminal = TargetTerminal.Frontend(tab)
+            helper.runCommand(tab, openCodeStartupCommand())
+        } catch (exception: Throwable) {
+            notify(project, "New Terminal is unavailable, falling back to Classic Terminal: ${exception.message}", NotificationType.WARNING)
+            null
+        }
+    }
+
+    private fun startLegacyReworkedOpenCodeTerminal(tabName: String, workingDirectory: String): BridgeResult? {
+        return try {
+            val widget = legacyReworkedTerminalHelper.createOpenCodeTerminal(tabName, workingDirectory)
+                ?: return null
+            markedTerminal = TargetTerminal.Classic(widget)
+            legacyReworkedTerminalHelper.runCommand(widget, openCodeStartupCommand())
+        } catch (exception: Throwable) {
+            notify(project, "Reworked Terminal is unavailable, falling back to Classic Terminal: ${exception.message}", NotificationType.WARNING)
+            null
+        }
+    }
+
+    private fun startClassicOpenCodeTerminal(tabName: String, workingDirectory: String): BridgeResult {
+        val terminalToolWindowManager = TerminalToolWindowManager.getInstance(project)
+        val toolWindow = terminalToolWindow(terminalToolWindowManager)
+            ?: return BridgeResult.Error("Terminal tool window was not found.")
+        val startupOptions = ShellStartupOptions.Builder()
+            .workingDirectory(workingDirectory)
+            .envVariables(mapOf(EDITOR_ENV_NAME to cmdScript.toString()))
+            .build()
+        val startupDisposable: Disposable = Disposer.newDisposable("OpenCode Terminal startup")
+        val widget = try {
+            terminalToolWindowManager.terminalRunner.startShellTerminalWidget(startupDisposable, startupOptions, true)
+        } catch (exception: Throwable) {
+            Disposer.dispose(startupDisposable)
+            return BridgeResult.Error("Failed to create OpenCode Terminal: ${exception.message}")
+        }
+
+        val content = terminalToolWindowManager.newTab(toolWindow, widget)
+        content.displayName = tabName
+        markedTerminal = TargetTerminal.Classic(widget)
+        toolWindow.activate(Runnable {
+            try {
+                ShellTerminalWidget.toShellJediTermWidgetOrThrow(widget).executeCommand(OPENCODE_COMMAND)
+                notify(project, "Started OpenCode Terminal (classic-fallback)", NotificationType.INFORMATION)
+            } catch (exception: Throwable) {
+                notify(project, "Failed to run opencode: ${exception.message}", NotificationType.WARNING)
+            }
+        }, true, true)
+        return BridgeResult.Scheduled
+    }
+
     private fun writeBridgeFiles(payload: String) {
-        Files.createDirectories(bridgeDir)
+        ensureBridgeScripts()
         Files.writeString(selectionFile, payload, StandardCharsets.UTF_8, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.WRITE)
+    }
+
+    /** 在 %TEMP%\opencode-idea-bridge\ 下写入桥接脚本，不覆盖 latest-selection.md */
+    private fun ensureBridgeScripts() {
+        Files.createDirectories(bridgeDir)
         Files.writeString(powerShellScript, powerShellScriptContent(), StandardCharsets.UTF_8, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.WRITE)
         Files.writeString(cmdScript, cmdScriptContent(), StandardCharsets.UTF_8, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.WRITE)
+    }
+
+    private fun openCodeWorkingDirectory(): String {
+        return project.basePath ?: System.getProperty("user.home")
+    }
+
+    private fun openCodeStartupCommand(): String {
+        return if (SystemInfo.isWindows) {
+            "\$env:$EDITOR_ENV_NAME='${powerShellSingleQuoted(cmdScript.toString())}'; $OPENCODE_COMMAND"
+        } else {
+            "export $EDITOR_ENV_NAME='${shSingleQuoted(cmdScript.toString())}'; $OPENCODE_COMMAND"
+        }
+    }
+
+    private fun nextOpenCodeTabName(): String {
+        val existingNames = terminalNames()
+        val pattern = Regex("""^${Regex.escape(OPENCODE_TAB_NAME)} \((\d+)\)$""")
+        val maxIndex = existingNames.fold(0) { max, name ->
+            when {
+                name == OPENCODE_TAB_NAME -> maxOf(max, 1)
+                else -> maxOf(max, pattern.matchEntire(name)?.groupValues?.get(1)?.toIntOrNull() ?: 0)
+            }
+        }
+        return if (maxIndex == 0) OPENCODE_TAB_NAME else "$OPENCODE_TAB_NAME (${maxIndex + 1})"
+    }
+
+    private fun terminalNames(): List<String> {
+        val frontendNames = frontendHelper?.allTerminalNames().orEmpty()
+        val classicNames = TerminalToolWindowManager.getInstance(project)
+            .toolWindow
+            ?.contentManager
+            ?.contents
+            ?.mapNotNull { it.displayName }
+            .orEmpty()
+        return frontendNames + classicNames
+    }
+
+    private fun powerShellSingleQuoted(value: String): String {
+        return value.replace("'", "''")
+    }
+
+    private fun shSingleQuoted(value: String): String {
+        return value.replace("'", "'\"'\"'")
+    }
+
+    private fun terminalToolWindow(manager: TerminalToolWindowManager): ToolWindow? {
+        manager.toolWindow?.let { return it }
+        return try {
+            val method = manager.javaClass.getDeclaredMethod("getOrInitToolWindow")
+            method.isAccessible = true
+            method.invoke(manager) as? ToolWindow
+        } catch (_: Throwable) {
+            null
+        }
+    }
+
+    private fun notifyLegacyReworkedFallbackIfNeeded() {
+        when (ideBaselineVersion()) {
+            251 -> notify(
+                project,
+                "Using Classic Terminal (classic-fallback). IntelliJ IDEA 2025.1 defaults to Classic; Reworked 2025 is Beta and has no stable public startup API for plugins.",
+                NotificationType.WARNING
+            )
+            252 -> notify(
+                project,
+                "Using Classic Terminal (classic-fallback). Reworked startup in 2025.2 uses best-effort internal APIs; the reliable public startup API is available in 2025.3+.",
+                NotificationType.WARNING
+            )
+        }
+    }
+
+    private fun ideBaselineVersion(): Int {
+        return ApplicationInfo.getInstance().build.baselineVersion
     }
 
     /** 阶段二：找到目标终端并触发 editor_open */
@@ -283,6 +477,9 @@ class OpenCodeBridgeService(
 
     companion object {
         private const val NOTIFICATION_GROUP_ID = "OpenCode Terminal Tools"
+        private const val OPENCODE_COMMAND = "opencode"
+        private const val OPENCODE_TAB_NAME = "OpenCode"
+        private const val EDITOR_ENV_NAME = "EDITOR"
         private const val DEFAULT_EDITOR_OPEN_SHORTCUT = "ctrl+x e"
         private const val LINE_END_SPACE = "\u0005 "
         private const val SETTLE_INPUT_DELAY_MS = 300
