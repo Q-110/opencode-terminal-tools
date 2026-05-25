@@ -117,8 +117,55 @@ class FrontendTerminalHelper(
         return BridgeResult.Scheduled
     }
 
+    fun injectDirectInput(tab: Any, payload: String, settleAtLineEnd: Boolean): BridgeResult {
+        val content = contentOf(tab)
+            ?: return BridgeResult.Error("Invalid frontend terminal tab.")
+        val view = viewOf(tab)
+            ?: return BridgeResult.Error("Invalid frontend terminal view.")
+        val toolWindow = ToolWindowManager.getInstance(project).getToolWindow(TERMINAL_TOOL_WINDOW_ID)
+            ?: return BridgeResult.Error("Terminal tool window was not found.")
+
+        toolWindow.activate(Runnable {
+            toolWindow.contentManager.setSelectedContentCB(content, true, true)
+                .doWhenProcessed(Runnable {
+                    val focusComponent = preferredFocusableComponent(view)
+                    if (focusComponent == null) {
+                        OpenCodeBridgeService.notify(project, "Cannot focus the OpenCode terminal input component.", NotificationType.WARNING)
+                        return@Runnable
+                    }
+                    val focusCallback = IdeFocusManager.getInstance(project)
+                        .requestFocusInProject(focusComponent, project)
+                    focusCallback.doWhenDone(Runnable {
+                        try {
+                            sendDirectInput(view, focusComponent, payload, settleAtLineEnd)
+                        } catch (exception: Throwable) {
+                            OpenCodeBridgeService.notify(project, "发送 OpenCode 输入失败：${exception.message}", NotificationType.WARNING)
+                        }
+                    })
+                    focusCallback.doWhenRejected(Runnable {
+                        OpenCodeBridgeService.notify(project, "Cannot focus the OpenCode terminal input component.", NotificationType.WARNING)
+                    })
+                })
+        }, true, true)
+
+        return BridgeResult.Scheduled
+    }
+
     private fun tabs(): List<Any> {
         return tabsManager.tabs
+    }
+
+    private fun sendDirectInput(view: Any, focusComponent: JComponent, payload: String, settleAtLineEnd: Boolean) {
+        try {
+            sendRawString(view, payload)
+        } catch (_: Throwable) {
+            sendText(view, payload)
+        }
+        if (settleAtLineEnd) {
+            scheduleLineEndSpace(view, focusComponent, true)
+        } else {
+            OpenCodeBridgeService.notify(project, "已发送到 OpenCode", NotificationType.INFORMATION)
+        }
     }
 
     private fun sendEditorCommand(

@@ -146,9 +146,9 @@ class OpenCodeConsoleErrorInlayService(
 
         val payload = "控制台错误：\n-------\n$errorText\n-------\n"
         val dataContext = DataManager.getInstance().getDataContext(editor.component)
-        when (val result = OpenCodeBridgeService.getInstance(project).sendSelection(payload, dataContext)) {
+        when (val result = OpenCodeBridgeService.getInstance(project).sendDirectPaste(payload, dataContext)) {
             is OpenCodeBridgeService.BridgeResult.Success -> {
-                OpenCodeBridgeService.notify(project, "Sent console error to OpenCode", NotificationType.INFORMATION)
+                OpenCodeBridgeService.notify(project, "已发送控制台错误到 OpenCode", NotificationType.INFORMATION)
             }
             is OpenCodeBridgeService.BridgeResult.Scheduled -> {
             }

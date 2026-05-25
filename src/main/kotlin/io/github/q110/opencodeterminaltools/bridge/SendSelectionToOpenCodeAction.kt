@@ -56,7 +56,7 @@ class SendSelectionToOpenCodeAction : AnAction(AllIcons.Debugger.Console) {
         val lineRange = if (startLine == endLine) startLine else "$startLine-$endLine"
         val payload = "@$filePath:$lineRange\n-------\n$selectedText\n-------\n"
 
-        when (val result = OpenCodeBridgeService.getInstance(project).sendSelection(payload, event.dataContext)) {
+        when (val result = OpenCodeBridgeService.getInstance(project).sendDirectPaste(payload, event.dataContext)) {
             is OpenCodeBridgeService.BridgeResult.Success -> {
                 OpenCodeBridgeService.notify(project, "已发送到 OpenCode", NotificationType.INFORMATION)
             }

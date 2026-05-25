@@ -88,23 +88,33 @@ class OpenCodeBridgeService(
         }
     }
 
-    /** 拖拽路径合并为一次 editor_open，避免多次触发造成卡顿 */
+    /** 直接写入 OpenCode TUI 输入区，用于测试短路径发送绕开 editor_open */
+    fun sendDirectInput(payload: String, dataContext: DataContext, settleAtLineEnd: Boolean = false): BridgeResult {
+        val terminal = resolveTargetTerminal(dataContext)
+            ?: return BridgeResult.Error("没有找到可写入的 OpenCode Terminal。请先在 OpenCode 所在 Terminal 标签页执行 Mark as OpenCode Terminal。")
+
+        return injectDirectInput(terminal, payload, settleAtLineEnd)
+    }
+
+    /** 使用 bracketed paste 直接写入多行内容，避免换行被终端当作提交处理 */
+    fun sendDirectPaste(payload: String, dataContext: DataContext): BridgeResult {
+        val terminal = resolveTargetTerminal(dataContext)
+            ?: return BridgeResult.Error("没有找到可写入的 OpenCode Terminal。请先在 OpenCode 所在 Terminal 标签页执行 Mark as OpenCode Terminal。")
+
+        return injectDirectInput(terminal, bracketedPaste(payload), settleAtLineEnd = false)
+    }
+
+    /** 拖拽路径合并为一次输入，避免多次触发造成卡顿 */
     fun sendDroppedPaths(files: List<VirtualFile>): BridgeResult {
         val payload = files.filter { it.isValid }
             .joinToString(separator = "\n") { pathPayload(it) }
         if (payload.isBlank()) {
             return BridgeResult.Error("没有找到要发送的文件或文件夹。")
         }
-        if (markedUsableTerminal() == null) {
-            return BridgeResult.Error("请先在 OpenCode 所在 Terminal 标签页执行 Mark as OpenCode Terminal。")
-        }
 
-        return try {
-            writeBridgeFiles(payload)
-            injectMarkedEditorCommand(settleAtLineEnd = true)
-        } catch (exception: IOException) {
-            BridgeResult.Error("写入 OpenCode 桥接文件失败：${exception.message}")
-        }
+        val terminal = markedUsableTerminal()
+            ?: return BridgeResult.Error("请先在 OpenCode 所在 Terminal 标签页执行 Mark as OpenCode Terminal。")
+        return injectDirectInput(terminal, payload, settleAtLineEnd = true)
     }
 
     /** 创建新的 OpenCode terminal，并在 shell 启动前注入桥接 EDITOR 环境变量 */
@@ -224,6 +234,10 @@ class OpenCodeBridgeService(
         return "@${displayPath(project, file)}"
     }
 
+    private fun bracketedPaste(payload: String): String {
+        return BRACKETED_PASTE_START + payload + BRACKETED_PASTE_END
+    }
+
     /** 在 %TEMP%\opencode-idea-bridge\ 下写入桥接脚本，不覆盖 latest-selection.md */
     private fun ensureBridgeScripts() {
         Files.createDirectories(bridgeDir)
@@ -332,6 +346,17 @@ class OpenCodeBridgeService(
         }
     }
 
+    private fun injectDirectInput(terminal: TargetTerminal, payload: String, settleAtLineEnd: Boolean): BridgeResult {
+        return when (terminal) {
+            is TargetTerminal.Classic -> injectClassicDirectInput(terminal.widget, payload, settleAtLineEnd)
+            is TargetTerminal.Frontend -> {
+                val helper = frontendHelper
+                    ?: return BridgeResult.Error("新版终端 API 在当前 IDE 中不可用。")
+                helper.injectDirectInput(terminal.tab, payload, settleAtLineEnd)
+            }
+        }
+    }
+
     /** 通过 TTY Connector 向经典终端写入快捷键序列 */
     private fun injectClassicTerminal(terminal: TerminalWidget, settleAtLineEnd: Boolean): BridgeResult {
         val connector = try {
@@ -360,6 +385,31 @@ class OpenCodeBridgeService(
             BridgeResult.Success
         } catch (exception: IOException) {
             BridgeResult.Error("发送 OpenCode editor_open 到 Terminal 失败：${exception.message}")
+        }
+    }
+
+    /** 通过 TTY Connector 直接向经典终端写入短文本 */
+    private fun injectClassicDirectInput(terminal: TerminalWidget, payload: String, settleAtLineEnd: Boolean): BridgeResult {
+        val connector = try {
+            terminal.ttyConnector
+        } catch (exception: Throwable) {
+            return BridgeResult.Error("当前 Terminal 没有暴露可写入的 TTY 连接。")
+        } ?: return BridgeResult.Error("当前 Terminal 没有暴露可写入的 TTY 连接。")
+
+        if (!connector.isConnected) {
+            markedTerminal = null
+            return BridgeResult.Error("已选择的 OpenCode Terminal 已断开连接。")
+        }
+
+        return try {
+            terminal.requestFocus()
+            connector.write(payload)
+            if (settleAtLineEnd) {
+                scheduleClassicLineEndSpace { connector.write(LINE_END_SPACE) }
+            }
+            BridgeResult.Success
+        } catch (exception: IOException) {
+            BridgeResult.Error("发送 OpenCode 输入到 Terminal 失败：${exception.message}")
         }
     }
 
@@ -544,6 +594,8 @@ class OpenCodeBridgeService(
         private const val EDITOR_ENV_NAME = "EDITOR"
         private const val DEFAULT_EDITOR_OPEN_SHORTCUT = "ctrl+x e"
         private const val LINE_END_SPACE = "\u0005 "
+        private const val BRACKETED_PASTE_START = "\u001B[200~"
+        private const val BRACKETED_PASTE_END = "\u001B[201~"
         private const val SETTLE_INPUT_DELAY_MS = 300
 
         val bridgeDir: Path = Path.of(System.getProperty("java.io.tmpdir"), "opencode-idea-bridge")
