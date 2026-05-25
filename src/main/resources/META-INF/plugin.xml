@@ -11,6 +11,7 @@
     <extensions defaultExtensionNs="com.intellij">
         <applicationService serviceImplementation="io.github.q110.opencodeterminaltools.settings.OpenCodeTerminalToolsSettings"/>
         <projectService serviceImplementation="io.github.q110.opencodeterminaltools.bridge.OpenCodeBridgeService"/>
+        <projectService serviceImplementation="io.github.q110.opencodeterminaltools.bridge.OpenCodeTerminalDropService"/>
         <projectService serviceImplementation="io.github.q110.opencodeterminaltools.console.OpenCodeConsoleErrorInlayService"/>
         <applicationConfigurable
             parentId="tools"

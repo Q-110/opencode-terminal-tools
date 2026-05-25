@@ -12,6 +12,7 @@ import io.github.q110.opencodeterminaltools.console.OpenCodeConsoleErrorInlaySer
 class OpenCodeTerminalToolsMenuRegistrar : StartupActivity, DumbAware {
     override fun runActivity(project: com.intellij.openapi.project.Project) {
         project.service<OpenCodeConsoleErrorInlayService>().initialize()
+        project.service<OpenCodeTerminalDropService>().initialize()
 
         val actionManager = ActionManager.getInstance()
 

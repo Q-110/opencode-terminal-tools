@@ -12,9 +12,12 @@ import com.intellij.openapi.components.service
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Disposer
 import com.intellij.openapi.util.SystemInfo
+import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.openapi.wm.ToolWindow
 import com.intellij.terminal.JBTerminalWidget
 import com.intellij.terminal.ui.TerminalWidget
+import com.intellij.ui.content.Content
+import io.github.q110.opencodeterminaltools.filter.displayPath
 import io.github.q110.opencodeterminaltools.settings.OpenCodeTerminalToolsSettings
 import org.jetbrains.plugins.terminal.ShellStartupOptions
 import org.jetbrains.plugins.terminal.ShellTerminalWidget
@@ -52,6 +55,7 @@ class OpenCodeBridgeService(
             ?: singleUsableTerminal()
             ?: return false
         markedTerminal = terminal
+        project.service<OpenCodeTerminalDropService>().refreshDropTarget()
         return true
     }
 
@@ -60,11 +64,44 @@ class OpenCodeBridgeService(
         return resolveTargetTerminal(dataContext) != null
     }
 
+    /** 当前拖拽目标必须是已选中且已标记的 OpenCode 终端 */
+    fun isActiveMarkedTerminalContent(content: Content): Boolean {
+        val toolWindow = TerminalToolWindowManager.getInstance(project).toolWindow ?: return false
+        if (toolWindow.contentManager.selectedContent !== content) {
+            return false
+        }
+
+        return when (val marked = markedUsableTerminal()) {
+            is TargetTerminal.Classic -> TerminalToolWindowManager.findWidgetByContent(content) == marked.widget
+            is TargetTerminal.Frontend -> frontendHelper?.isContentOf(marked.tab, content) == true
+            null -> false
+        }
+    }
+
     /** 两阶段发送：写入桥接文件 → 注入 editor_open 到终端 */
     fun sendSelection(payload: String, dataContext: DataContext, settleAtLineEnd: Boolean = false): BridgeResult {
         return try {
             writeBridgeFiles(payload)
             injectEditorCommand(dataContext, settleAtLineEnd)
+        } catch (exception: IOException) {
+            BridgeResult.Error("写入 OpenCode 桥接文件失败：${exception.message}")
+        }
+    }
+
+    /** 拖拽路径合并为一次 editor_open，避免多次触发造成卡顿 */
+    fun sendDroppedPaths(files: List<VirtualFile>): BridgeResult {
+        val payload = files.filter { it.isValid }
+            .joinToString(separator = "\n") { pathPayload(it) }
+        if (payload.isBlank()) {
+            return BridgeResult.Error("没有找到要发送的文件或文件夹。")
+        }
+        if (markedUsableTerminal() == null) {
+            return BridgeResult.Error("请先在 OpenCode 所在 Terminal 标签页执行 Mark as OpenCode Terminal。")
+        }
+
+        return try {
+            writeBridgeFiles(payload)
+            injectMarkedEditorCommand(settleAtLineEnd = true)
         } catch (exception: IOException) {
             BridgeResult.Error("写入 OpenCode 桥接文件失败：${exception.message}")
         }
@@ -126,6 +163,7 @@ class OpenCodeBridgeService(
         return try {
             val tab = helper.createOpenCodeTerminal(tabName, workingDirectory)
             markedTerminal = TargetTerminal.Frontend(tab)
+            project.service<OpenCodeTerminalDropService>().refreshDropTarget()
             helper.runCommand(tab, openCodeStartupCommand())
         } catch (exception: Throwable) {
             notify(project, "New Terminal is unavailable, falling back to Classic Terminal: ${exception.message}", NotificationType.WARNING)
@@ -138,6 +176,7 @@ class OpenCodeBridgeService(
             val widget = legacyReworkedTerminalHelper.createOpenCodeTerminal(tabName, workingDirectory)
                 ?: return null
             markedTerminal = TargetTerminal.Classic(widget)
+            project.service<OpenCodeTerminalDropService>().refreshDropTarget()
             legacyReworkedTerminalHelper.runCommand(widget, openCodeStartupCommand())
         } catch (exception: Throwable) {
             notify(project, "Reworked Terminal is unavailable, falling back to Classic Terminal: ${exception.message}", NotificationType.WARNING)
@@ -164,6 +203,7 @@ class OpenCodeBridgeService(
         val content = terminalToolWindowManager.newTab(toolWindow, widget)
         content.displayName = tabName
         markedTerminal = TargetTerminal.Classic(widget)
+        project.service<OpenCodeTerminalDropService>().refreshDropTarget()
         toolWindow.activate(Runnable {
             try {
                 ShellTerminalWidget.toShellJediTermWidgetOrThrow(widget).executeCommand(OPENCODE_COMMAND)
@@ -178,6 +218,10 @@ class OpenCodeBridgeService(
     private fun writeBridgeFiles(payload: String) {
         ensureBridgeScripts()
         Files.writeString(selectionFile, payload, StandardCharsets.UTF_8, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.WRITE)
+    }
+
+    private fun pathPayload(file: VirtualFile): String {
+        return "@${displayPath(project, file)}"
     }
 
     /** 在 %TEMP%\opencode-idea-bridge\ 下写入桥接脚本，不覆盖 latest-selection.md */
@@ -260,11 +304,23 @@ class OpenCodeBridgeService(
         return ApplicationInfo.getInstance().build.baselineVersion
     }
 
+    /** 拖拽发送只使用已标记终端，不走当前终端或唯一终端回退 */
+    private fun injectMarkedEditorCommand(settleAtLineEnd: Boolean): BridgeResult {
+        val terminal = markedUsableTerminal()
+            ?: return BridgeResult.Error("请先在 OpenCode 所在 Terminal 标签页执行 Mark as OpenCode Terminal。")
+
+        return injectTerminal(terminal, settleAtLineEnd)
+    }
+
     /** 阶段二：找到目标终端并触发 editor_open */
     private fun injectEditorCommand(dataContext: DataContext, settleAtLineEnd: Boolean): BridgeResult {
         val terminal = resolveTargetTerminal(dataContext)
             ?: return BridgeResult.Error("没有找到可写入的 OpenCode Terminal。请先在 OpenCode 所在 Terminal 标签页执行 Mark as OpenCode Terminal。")
 
+        return injectTerminal(terminal, settleAtLineEnd)
+    }
+
+    private fun injectTerminal(terminal: TargetTerminal, settleAtLineEnd: Boolean): BridgeResult {
         return when (terminal) {
             is TargetTerminal.Classic -> injectClassicTerminal(terminal.widget, settleAtLineEnd)
             is TargetTerminal.Frontend -> {
@@ -374,17 +430,22 @@ class OpenCodeBridgeService(
 
     /** 终端发现优先级：已标记 → DataContext → 选中标签页 → 唯一可用 */
     private fun resolveTargetTerminal(dataContext: DataContext): TargetTerminal? {
-        val marked = markedTerminal
-        if (marked != null) {
-            if (isUsable(marked)) return marked
-            markedTerminal = null
-        }
+        markedUsableTerminal()?.let { return it }
         classicTerminalFromDataContext(dataContext)?.let {
             val target = TargetTerminal.Classic(it)
             if (isUsable(target)) return target
         }
         selectedTerminal()?.let { if (isUsable(it)) return it }
         return singleUsableTerminal()
+    }
+
+    private fun markedUsableTerminal(): TargetTerminal? {
+        val marked = markedTerminal ?: return null
+        if (isUsable(marked)) {
+            return marked
+        }
+        markedTerminal = null
+        return null
     }
 
     private fun classicTerminalFromDataContext(dataContext: DataContext): TerminalWidget? {
@@ -446,6 +507,7 @@ class OpenCodeBridgeService(
               ${'$'}Original = [System.IO.File]::ReadAllText(${'$'}TargetFile, [System.Text.Encoding]::UTF8)
             }
             ${'$'}Selection = [System.IO.File]::ReadAllText(${'$'}SelectionFile, [System.Text.Encoding]::UTF8)
+            Remove-Item -LiteralPath ${'$'}SelectionFile -Force -ErrorAction SilentlyContinue
 
             if ([string]::IsNullOrEmpty(${'$'}Original)) {
               ${'$'}Merged = ${'$'}Selection

@@ -79,6 +79,10 @@ class FrontendTerminalHelper(
         return tabs().any { it == tab }
     }
 
+    fun isContentOf(tab: Any, content: Content): Boolean {
+        return contentOf(tab) == content
+    }
+
     fun inject(tab: Any, settleAtLineEnd: Boolean, triggerText: String, isCommand: Boolean): BridgeResult {
         val content = contentOf(tab)
             ?: return BridgeResult.Error("Invalid frontend terminal tab.")

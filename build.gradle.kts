@@ -4,7 +4,7 @@ plugins {
 }
 
 group = "io.github.q110"
-version = "1.10.2"
+version = "1.11.0"
 
 kotlin {
     jvmToolchain(17)
@@ -66,8 +66,9 @@ intellijPlatform {
         """.trimIndent()
         changeNotes = """
             <ul>
-              <li>Fixes console hover jitter caused by repeatedly resetting the OpenCode error icon cursor and tooltip state while moving over empty console areas.</li>
-              <li>Keeps the OpenCode error icon hover state active only while the pointer is on the inline icon.</li>
+              <li>Adds drag-and-drop sending of files and folders from the project view to the active marked OpenCode terminal.</li>
+              <li>Supports sending multiple dragged paths in a single OpenCode editor_open payload.</li>
+              <li>Preserves the JetBrains Terminal native folder drag behavior for regular terminals.</li>
             </ul>
         """.trimIndent()
 

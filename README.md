@@ -178,7 +178,10 @@ src/main/java/A.java:10-20
 
 - **从项目视图触发：** 右键文件/文件夹 → **Send File/Folder Path to OpenCode**
 - **从编辑器标签页触发：** 右键标签页 → **Send File Path to OpenCode**
+- **从终端拖拽触发：** 将项目视图中的文件/文件夹拖到当前已标记且激活的 OpenCode 终端
 - 以 `@displayPath` 格式发送，自动结束 OpenCode 的 @路径补全状态
+- 一次拖拽多个文件/文件夹时，会一次发送多行 `@路径`
+- 普通终端不接管 OpenCode 拖拽发送，文件夹拖拽仍保留 JetBrains Terminal 原生 `cd` 行为
 
 #### 发送控制台错误到 OpenCode
 
@@ -260,7 +263,7 @@ openai/gpt-4.1
 | 动作 | 默认快捷键 | 触发方式 |
 |------|-----------|---------|
 | Send Selection to OpenCode | `Ctrl+Alt+,` | 编辑器内快捷键 / 右键菜单 |
-| Send File Path to OpenCode | — | 项目视图 / 编辑器标签页右键菜单 |
+| Send File Path to OpenCode | — | 项目视图 / 编辑器标签页右键菜单 / 拖拽到已标记 OpenCode 终端 |
 | Send Console Error to OpenCode | — | 控制台异常行图标 |
 | Generate Commit Message | — | Commit 面板工具栏 |
 | Start OpenCode Terminal | — | 工具栏按钮（Debugger.Console 图标） |
@@ -280,6 +283,7 @@ src/main/kotlin/io/github/q110/opencodeterminaltools/
 │   ├── MarkOpenCodeTerminalAction.kt     # 标记终端 Action
 │   ├── StartOpenCodeTerminalAction.kt    # 启动 OpenCode 终端 Action
 │   ├── GenerateCommitMessageAction.kt    # 生成中文提交文案 Action
+│   ├── OpenCodeTerminalDropService.kt    # 终端拖拽路径发送服务
 │   └── OpenCodeTerminalToolsMenuRegistrar.kt  # 菜单注册器
 │
 ├── filter/              # 终端输出过滤模块
@@ -371,7 +375,7 @@ src/main/kotlin/io/github/q110/opencodeterminaltools/
 | 项目 | 值 |
 |------|-----|
 | 插件 ID | `io.github.q110.opencodeterminaltools` |
-| 当前版本 | `1.10.2` |
+| 当前版本 | `1.11.0` |
 | Group | `io.github.q110` |
 | Vendor | `zibo` |
 | 许可证 | MIT |
