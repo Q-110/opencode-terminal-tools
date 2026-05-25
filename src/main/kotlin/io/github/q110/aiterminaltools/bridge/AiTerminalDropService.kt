@@ -20,6 +20,7 @@ import com.intellij.ui.content.Content
 import com.intellij.ui.content.ContentManager
 import com.intellij.ui.content.ContentManagerEvent
 import com.intellij.ui.content.ContentManagerListener
+import io.github.q110.aiterminaltools.settings.AiTerminalToolsSettings
 import org.jetbrains.plugins.terminal.TerminalToolWindowManager
 
 @Service(Service.Level.PROJECT)
@@ -58,13 +59,15 @@ class AiTerminalDropService(
 
     fun refreshDropTarget() {
         val targetContent = currentActiveContent()
+        val dropEnabled = targetContent != null && (dragToAiTerminalEnabled() || isRecordedAiTerminalContent(targetContent))
+
         dropTargetDisposables.keys
-            .filter { it !== targetContent || !isRecordedAiTerminalContent(it) }
+            .filter { it !== targetContent || !dropEnabled }
             .toList()
             .forEach { disposeDropTarget(it) }
 
-        if (targetContent != null && isRecordedAiTerminalContent(targetContent)) {
-            installForContent(targetContent)
+        if (dropEnabled) {
+            installForContent(targetContent!!)
         }
     }
 
@@ -106,7 +109,7 @@ class AiTerminalDropService(
     }
 
     private fun installForContent(content: Content) {
-        if (!isRecordedAiTerminalContent(content)) {
+        if (!dragToAiTerminalEnabled() && !isRecordedAiTerminalContent(content)) {
             return
         }
         val component = content.component ?: return
@@ -145,7 +148,11 @@ class AiTerminalDropService(
     private fun canHandleDrop(files: List<VirtualFile>, content: Content): Boolean {
         return files.isNotEmpty() &&
             currentActiveContent() === content &&
-            isRecordedAiTerminalContent(content)
+            (dragToAiTerminalEnabled() || isRecordedAiTerminalContent(content))
+    }
+
+    private fun dragToAiTerminalEnabled(): Boolean {
+        return AiTerminalToolsSettings.getInstance().getState().isDragToAiTerminalEnabled()
     }
 
     private fun isRecordedAiTerminalContent(content: Content): Boolean {

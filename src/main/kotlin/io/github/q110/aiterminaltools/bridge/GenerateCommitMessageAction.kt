@@ -476,7 +476,7 @@ class GenerateCommitMessageAction : AnAction(AllIcons.Debugger.Console) {
                     "$COMMIT_MESSAGE_AGENT": {
                       "description": "Commit message generator",
                       "mode": "primary",
-                      "prompt": "Generate concise Chinese git commit message bullets for the listed checked files. You may use bash only to inspect git status, git diff, or listed untracked files. Never modify files. The final answer must contain only bullet lines.",
+                      "prompt": "生成简洁的中文提交信息，按条目输出，只写变更结果，不写项目旧名称、类名、文件名和技术细节。每条尽量短，避免出现反引号、Markdown 代码块、英文长句和具体实现描述，只输出普通文本条目。",
                       "tools": {
                         "invalid": false,
                         "skill": false,

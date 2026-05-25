@@ -28,7 +28,13 @@ class AiTerminalToolsSettings : PersistentStateComponent<AiTerminalToolsSettings
         var fileLinksEnabled: Boolean = true
         var copyLinksEnabled: Boolean = true
         var errorToAiTerminalIconsEnabled: Boolean = true
-        var dragToAiTerminalEnabled: Boolean = true`n        var commitMessageModel: String = ""
+        var dragToAiTerminalEnabled: Boolean? = null
+        var commitMessageModel: String = ""
+
+        /** 已有配置文件反序列化时缺少该字段，兜底默认开启 */
+        fun isDragToAiTerminalEnabled(): Boolean {
+            return dragToAiTerminalEnabled ?: true
+        }
     }
 
     companion object {
