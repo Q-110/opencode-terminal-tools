@@ -103,6 +103,8 @@ Run/Debug Console 中的 Java/JVM 异常首行会显示一个 OpenCode 图标，
 
 如果一段 stack trace 中有多个 `Caused by:`，每个异常段会独立显示图标，点击不同图标只发送对应异常段。
 
+错误图标只在鼠标命中图标时接管光标和提示文本，避免在控制台空白区域反复重置悬浮状态造成抖动。
+
 可在 **Settings → Tools → OpenCode Terminal Tools** 中通过 **Enable error-to-OpenCode console icons** 开关启用或关闭。
 
 ---
@@ -232,7 +234,7 @@ $env:OPENCODE_IDEA_REAL_EDITOR="code --wait"
 
 ### 📝 生成中文提交信息
 
-Commit 面板工具栏会显示 **Generate Chinese Commit Message** 动作，点击后使用 OpenCode 根据当前 Commit 面板中已勾选的文件生成中文提交文案。
+Commit 面板工具栏会显示 **Generate Commit Message** 动作，点击后使用 OpenCode 根据当前 Commit 面板中已勾选的文件生成中文提交文案。
 
 **生成规则：**
 
@@ -262,7 +264,7 @@ openai/gpt-4.1
 | Send Selection to OpenCode | `Ctrl+Alt+,` | 编辑器内快捷键 / 右键菜单 |
 | Send File Path to OpenCode | — | 项目视图 / 编辑器标签页右键菜单 |
 | Send Console Error to OpenCode | — | 控制台异常行图标 |
-| Generate Chinese Commit Message | — | Commit 面板工具栏 |
+| Generate Commit Message | — | Commit 面板工具栏 |
 | Start OpenCode Terminal | — | 工具栏按钮（Debugger.Console 图标） |
 | Mark as OpenCode Terminal | — | 终端标签页右键菜单 |
 
@@ -371,7 +373,7 @@ src/main/kotlin/io/github/q110/opencodeterminaltools/
 | 项目 | 值 |
 |------|-----|
 | 插件 ID | `io.github.q110.opencodeterminaltools` |
-| 当前版本 | `1.10.1` |
+| 当前版本 | `1.10.2` |
 | Group | `io.github.q110` |
 | Vendor | `zibo` |
 | 许可证 | MIT |

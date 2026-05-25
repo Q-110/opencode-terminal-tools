@@ -28,6 +28,7 @@ import java.awt.Cursor
 import java.awt.Graphics
 import java.awt.Rectangle
 import javax.swing.Icon
+import javax.swing.JComponent
 
 @Service(Service.Level.PROJECT)
 class OpenCodeConsoleErrorInlayService(
@@ -36,6 +37,9 @@ class OpenCodeConsoleErrorInlayService(
     private val editorFactory = com.intellij.openapi.editor.EditorFactory.getInstance()
     private val documentInlays = mutableMapOf<Document, MutableMap<Int, TrackedErrorInlay>>()
     private val pendingDocuments = mutableSetOf<Document>()
+    private var hoveredErrorIconComponent: JComponent? = null
+    private var previousCursor: Cursor? = null
+    private var previousToolTipText: String? = null
 
     init {
         editorFactory.eventMulticaster.addDocumentListener(object : DocumentListener {
@@ -168,6 +172,7 @@ class OpenCodeConsoleErrorInlayService(
     }
 
     override fun dispose() {
+        clearErrorIconHover()
         pendingDocuments.clear()
         documentInlays.values.forEach { trackedByOffset ->
             trackedByOffset.values.forEach { it.dispose() }
@@ -189,14 +194,36 @@ class OpenCodeConsoleErrorInlayService(
 
     private inner class ConsoleErrorMouseMotionListener : EditorMouseMotionListener {
         override fun mouseMoved(event: EditorMouseEvent) {
-            val isErrorIcon = event.inlay?.renderer is ConsoleErrorInlayRenderer
+            if (!isProjectConsoleEditor(event.editor)) {
+                clearErrorIconHover()
+                return
+            }
+
             val component = event.editor.contentComponent
-            component.cursor = if (isErrorIcon) Cursor.getPredefinedCursor(Cursor.HAND_CURSOR) else Cursor.getDefaultCursor()
-            component.toolTipText = if (isErrorIcon) "Send console error to OpenCode" else null
+            if (event.inlay?.renderer is ConsoleErrorInlayRenderer) {
+                if (hoveredErrorIconComponent == component) return
+                clearErrorIconHover()
+                hoveredErrorIconComponent = component
+                previousCursor = component.cursor
+                previousToolTipText = component.toolTipText
+                component.cursor = Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
+                component.toolTipText = "Send console error to OpenCode"
+            } else {
+                clearErrorIconHover()
+            }
         }
 
         override fun mouseDragged(event: EditorMouseEvent) {
         }
+    }
+
+    private fun clearErrorIconHover() {
+        val component = hoveredErrorIconComponent ?: return
+        component.cursor = previousCursor ?: Cursor.getDefaultCursor()
+        component.toolTipText = previousToolTipText
+        hoveredErrorIconComponent = null
+        previousCursor = null
+        previousToolTipText = null
     }
 
     private data class TrackedErrorInlay(

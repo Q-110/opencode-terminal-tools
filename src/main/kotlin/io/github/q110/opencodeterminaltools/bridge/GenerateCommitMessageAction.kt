@@ -67,8 +67,8 @@ class GenerateCommitMessageAction : AnAction(AllIcons.Debugger.Console) {
     private fun confirmReplaceCommitMessage(project: Project): Boolean {
         return Messages.showYesNoDialog(
             project,
-            "当前提交文案已有内容，是否用生成结果替换？",
-            "生成提交文案",
+            "当前区域已有内容，是否替换？",
+            "生成提交信息",
             "替换",
             "取消",
             Messages.getQuestionIcon()
@@ -95,15 +95,15 @@ class GenerateCommitMessageAction : AnAction(AllIcons.Debugger.Console) {
                 invokeOnEdt {
                     commitMessageUi.setText(generatedMessage)
                     commitMessageUi.focus()
-                    OpenCodeBridgeService.notify(project, "已生成提交文案。", NotificationType.INFORMATION)
+                    OpenCodeBridgeService.notify(project, "已生成提交信息", NotificationType.INFORMATION)
                 }
             } catch (exception: CommitMessageGenerationException) {
                 invokeOnEdt {
-                    OpenCodeBridgeService.notify(project, exception.message ?: "生成提交文案失败。", NotificationType.WARNING)
+                    OpenCodeBridgeService.notify(project, exception.message ?: "生成提交信息失败", NotificationType.WARNING)
                 }
             } catch (exception: Throwable) {
                 invokeOnEdt {
-                    OpenCodeBridgeService.notify(project, "生成提交文案失败：${exception.message}", NotificationType.WARNING)
+                    OpenCodeBridgeService.notify(project, "生成提交信息失败：${exception.message}", NotificationType.WARNING)
                 }
             } finally {
                 invokeOnEdt {
@@ -184,7 +184,7 @@ class GenerateCommitMessageAction : AnAction(AllIcons.Debugger.Console) {
                     basePathPath,
                     OPENCODE_TIMEOUT_SECONDS,
                     indicator,
-                    "opencode 生成提交文案超时，请尝试减少勾选文件或配置更快的 Commit message model。",
+                    "opencode 生成提交信息超时",
                     environment = mapOf("XDG_CONFIG_HOME" to configHome.toString())
                 )
                 if (result.exitCode != 0) {
@@ -193,7 +193,7 @@ class GenerateCommitMessageAction : AnAction(AllIcons.Debugger.Console) {
 
                 val message = cleanupOutput(result.output)
                 if (message.isBlank()) {
-                    throw CommitMessageGenerationException("opencode 没有返回可用的提交文案。")
+                    throw CommitMessageGenerationException("opencode 没有返回可用的提交信息")
                 }
                 return message
             } finally {
@@ -362,7 +362,7 @@ class GenerateCommitMessageAction : AnAction(AllIcons.Debugger.Console) {
             while (true) {
                 if (indicator?.isCanceled == true) {
                     destroyProcessTree(process)
-                    throw CommitMessageGenerationException("已取消生成提交文案。")
+                    throw CommitMessageGenerationException("已取消")
                 }
                 if (process.waitFor(PROCESS_POLL_INTERVAL_MS, TimeUnit.MILLISECONDS)) {
                     break

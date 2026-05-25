@@ -4,7 +4,7 @@ plugins {
 }
 
 group = "io.github.q110"
-version = "1.10.1"
+version = "1.10.2"
 
 kotlin {
     jvmToolchain(17)
@@ -66,9 +66,8 @@ intellijPlatform {
         """.trimIndent()
         changeNotes = """
             <ul>
-              <li>Automatically deletes the temporary OpenCode session created for Commit message generation after the run finishes.</li>
-              <li>Uses a unique session title for each Commit message generation run so only the current run is cleaned up.</li>
-              <li>Keeps Commit message generation results unaffected if session cleanup fails.</li>
+              <li>Fixes console hover jitter caused by repeatedly resetting the OpenCode error icon cursor and tooltip state while moving over empty console areas.</li>
+              <li>Keeps the OpenCode error icon hover state active only while the pointer is on the inline icon.</li>
             </ul>
         """.trimIndent()
 
