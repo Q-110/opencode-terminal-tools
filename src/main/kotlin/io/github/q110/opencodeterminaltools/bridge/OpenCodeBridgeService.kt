@@ -1,4 +1,4 @@
-// OpenCode 桥接核心服务 — 选区写入桥接文件 → 触发 OpenCode editor_open 快捷键
+// OpenCode 桥接核心服务 — 直接向 OpenCode TUI 输入区写入内容
 package io.github.q110.opencodeterminaltools.bridge
 
 import com.intellij.notification.NotificationGroupManager
@@ -11,7 +11,6 @@ import com.intellij.openapi.components.Service
 import com.intellij.openapi.components.service
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Disposer
-import com.intellij.openapi.util.SystemInfo
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.openapi.wm.ToolWindow
 import com.intellij.terminal.JBTerminalWidget
@@ -78,7 +77,7 @@ class OpenCodeBridgeService(
         }
     }
 
-    /** 两阶段发送：写入桥接文件 → 注入 editor_open 到终端 */
+    /** 旧版 editor_open 回退路径：写入桥接文件 → 注入 editor_open 到终端 */
     fun sendSelection(payload: String, dataContext: DataContext, settleAtLineEnd: Boolean = false): BridgeResult {
         return try {
             writeBridgeFiles(payload)
@@ -88,7 +87,7 @@ class OpenCodeBridgeService(
         }
     }
 
-    /** 直接写入 OpenCode TUI 输入区，用于测试短路径发送绕开 editor_open */
+    /** 直接写入 OpenCode TUI 输入区 */
     fun sendDirectInput(payload: String, dataContext: DataContext, settleAtLineEnd: Boolean = false): BridgeResult {
         val terminal = resolveTargetTerminal(dataContext)
             ?: return BridgeResult.Error("没有找到可写入的 OpenCode Terminal。请先在 OpenCode 所在 Terminal 标签页执行 Mark as OpenCode Terminal。")
@@ -117,18 +116,13 @@ class OpenCodeBridgeService(
         return injectDirectInput(terminal, payload, settleAtLineEnd = true)
     }
 
-    /** 创建新的 OpenCode terminal，并在 shell 启动前注入桥接 EDITOR 环境变量 */
+    /** 创建新的 OpenCode terminal，并启动 opencode */
     fun startOpenCodeTerminal(): BridgeResult {
-        return try {
-            ensureBridgeScripts()
-            if (!openCodeTerminalStartInProgress.compareAndSet(false, true)) {
-                return BridgeResult.Scheduled
-            }
-            scheduleOpenCodeTerminalStart()
-            BridgeResult.Scheduled
-        } catch (exception: IOException) {
-            BridgeResult.Error("Failed to write OpenCode bridge scripts: ${exception.message}")
+        if (!openCodeTerminalStartInProgress.compareAndSet(false, true)) {
+            return BridgeResult.Scheduled
         }
+        scheduleOpenCodeTerminalStart()
+        return BridgeResult.Scheduled
     }
 
     private fun scheduleOpenCodeTerminalStart() {
@@ -200,7 +194,6 @@ class OpenCodeBridgeService(
             ?: return BridgeResult.Error("Terminal tool window was not found.")
         val startupOptions = ShellStartupOptions.Builder()
             .workingDirectory(workingDirectory)
-            .envVariables(mapOf(EDITOR_ENV_NAME to cmdScript.toString()))
             .build()
         val startupDisposable: Disposable = Disposer.newDisposable("OpenCode Terminal startup")
         val widget = try {
@@ -250,11 +243,7 @@ class OpenCodeBridgeService(
     }
 
     private fun openCodeStartupCommand(): String {
-        return if (SystemInfo.isWindows) {
-            "\$env:$EDITOR_ENV_NAME='${powerShellSingleQuoted(cmdScript.toString())}'; $OPENCODE_COMMAND"
-        } else {
-            "export $EDITOR_ENV_NAME='${shSingleQuoted(cmdScript.toString())}'; $OPENCODE_COMMAND"
-        }
+        return OPENCODE_COMMAND
     }
 
     private fun nextOpenCodeTabName(): String {
@@ -278,14 +267,6 @@ class OpenCodeBridgeService(
             ?.mapNotNull { it.displayName }
             .orEmpty()
         return frontendNames + classicNames
-    }
-
-    private fun powerShellSingleQuoted(value: String): String {
-        return value.replace("'", "''")
-    }
-
-    private fun shSingleQuoted(value: String): String {
-        return value.replace("'", "'\"'\"'")
     }
 
     private fun terminalToolWindow(manager: TerminalToolWindowManager): ToolWindow? {
@@ -318,7 +299,7 @@ class OpenCodeBridgeService(
         return ApplicationInfo.getInstance().build.baselineVersion
     }
 
-    /** 拖拽发送只使用已标记终端，不走当前终端或唯一终端回退 */
+    /** 旧版 editor_open 回退路径：拖拽发送只使用已标记终端 */
     private fun injectMarkedEditorCommand(settleAtLineEnd: Boolean): BridgeResult {
         val terminal = markedUsableTerminal()
             ?: return BridgeResult.Error("请先在 OpenCode 所在 Terminal 标签页执行 Mark as OpenCode Terminal。")
@@ -326,7 +307,7 @@ class OpenCodeBridgeService(
         return injectTerminal(terminal, settleAtLineEnd)
     }
 
-    /** 阶段二：找到目标终端并触发 editor_open */
+    /** 旧版 editor_open 回退路径：找到目标终端并触发 editor_open */
     private fun injectEditorCommand(dataContext: DataContext, settleAtLineEnd: Boolean): BridgeResult {
         val terminal = resolveTargetTerminal(dataContext)
             ?: return BridgeResult.Error("没有找到可写入的 OpenCode Terminal。请先在 OpenCode 所在 Terminal 标签页执行 Mark as OpenCode Terminal。")
@@ -591,7 +572,6 @@ class OpenCodeBridgeService(
         private const val NOTIFICATION_GROUP_ID = "OpenCode Terminal Tools"
         private const val OPENCODE_COMMAND = "opencode"
         private const val OPENCODE_TAB_NAME = "OpenCode"
-        private const val EDITOR_ENV_NAME = "EDITOR"
         private const val DEFAULT_EDITOR_OPEN_SHORTCUT = "ctrl+x e"
         private const val LINE_END_SPACE = "\u0005 "
         private const val BRACKETED_PASTE_START = "\u001B[200~"

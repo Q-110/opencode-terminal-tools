@@ -67,7 +67,7 @@ intellijPlatform {
         changeNotes = """
             <ul>
               <li>Adds drag-and-drop sending of files and folders from the project view to the active marked OpenCode terminal.</li>
-              <li>Supports sending multiple dragged paths in a single OpenCode editor_open payload.</li>
+              <li>Supports sending multiple dragged paths directly to the OpenCode TUI input area.</li>
               <li>Preserves the JetBrains Terminal native folder drag behavior for regular terminals.</li>
             </ul>
         """.trimIndent()

@@ -117,47 +117,28 @@ Run/Debug Console 中的 Java/JVM 异常首行会显示一个 OpenCode 图标，
 IDE 编辑器选区
       │
       ▼
-写入桥接文件 (%TEMP%\opencode-idea-bridge\)
+切换到 OpenCode 终端并聚焦输入区
       │
       ▼
-触发 editor_open 快捷键 → OpenCode 读取临时编辑文件
+直接写入 TUI 输入区
       │
       ▼
-桥接脚本合并选区内容 → OpenCode TUI 输入区
+OpenCode 接收文本、路径或 bracketed paste 多行内容
 ```
 
-桥接使用文件系统作为通信媒介，`EDITOR` 环境变量指向桥接脚本 `opencode-editor.cmd`/`.ps1`。
+桥接通过 JetBrains Terminal 输入通道直接写入 OpenCode TUI。多行选区和控制台错误使用 bracketed paste，文件路径使用普通输入并自动结束 @路径补全状态。
 
 #### 快速开始（推荐）
 
 1. 点击 IDE 工具栏的 **Start OpenCode Terminal** 按钮
-2. 插件自动创建新终端标签页、写入桥接脚本、设置 `EDITOR` 环境变量后启动 `opencode`
+2. 插件自动创建新终端标签页并启动 `opencode`
 3. 在编辑器中选中代码，按 **`Ctrl+Alt+,`** 发送到 OpenCode
 
-> 一键启动会自动处理 `EDITOR` 环境变量配置，无需手动设置。已存在的终端的标签页名依次为 `OpenCode`、`OpenCode (2)`、`OpenCode (3)`...
+> 已存在的终端的标签页名依次为 `OpenCode`、`OpenCode (2)`、`OpenCode (3)`...
 
 #### 手动配置
 
-如果已手动启动 OpenCode，需先配置 `EDITOR` 环境变量再启动：
-
-**PowerShell：**
-
-```powershell
-$env:EDITOR="$env:TEMP\opencode-idea-bridge\opencode-editor.cmd"
-```
-
-**CMD：**
-
-```cmd
-set EDITOR=%TEMP%\opencode-idea-bridge\opencode-editor.cmd
-```
-
-> ⚠️ 环境变量必须在启动 `opencode` **之前**设置，已运行的 OpenCode 不会读取之后设置的环境变量。
-
-**手动启动后的操作：**
-
-1. 在 OpenCode 所在的终端标签页右键 → **Mark as OpenCode Terminal**
-2. 在编辑器中选中代码，按 **`Ctrl+Alt+,`** 发送到 OpenCode
+如果已手动启动 OpenCode，只需在 OpenCode 所在的终端标签页右键 → **Mark as OpenCode Terminal**。之后在编辑器中选中代码，按 **`Ctrl+Alt+,`** 即可发送到 OpenCode。
 
 #### 发送选区到 OpenCode
 
@@ -172,7 +153,7 @@ src/main/java/A.java:10-20
 -------
 ```
 
-插件会：写入选区文件 → 切换到终端标签页 → 聚焦输入框 → 触发 `editor_open` 快捷键。
+插件会：切换到终端标签页 → 聚焦输入框 → 使用 bracketed paste 将选区写入 OpenCode 输入区。
 
 #### 发送文件/文件夹路径到 OpenCode
 
@@ -195,41 +176,7 @@ src/main/java/A.java:10-20
 -------
 ```
 
-插件会：识别异常段 → 写入桥接文件 → 切换到 OpenCode 终端 → 触发 `editor_open` 快捷键。
-
-#### 自定义 editor_open 快捷键
-
-插件默认按 `ctrl+x e`（OpenCode 默认快捷键）触发外部编辑器。如果修改了 OpenCode 的 `editor_open` 快捷键，需在 **Settings → Tools → OpenCode Terminal Tools** 中同步修改。
-
-在设置页的 `OpenCode editor_open shortcut` 字段填入新的快捷键，例如：
-
-```text
-f4
-```
-
-如需使用旧版 `/editor` 流程，填写：
-
-```text
-/editor
-```
-
-#### 桥接脚本说明
-
-插件自动生成以下桥接文件到 `%TEMP%\opencode-idea-bridge\`：
-
-| 文件 | 说明 |
-|------|------|
-| `latest-selection.md` | 选区内荣 payload 文件 |
-| `opencode-editor.ps1` | PowerShell 桥接脚本 |
-| `opencode-editor.cmd` | CMD 桥接脚本 |
-
-> `EDITOR` 必须指向桥接脚本，不要直接指向 `code`、`notepad` 或其他真实编辑器。桥接脚本会读取 `latest-selection.md`，将选区内容合并进 OpenCode 传入的临时编辑文件后退出。
-
-如果希望合并选区后仍然打开真实外部编辑器，可额外设置：
-
-```powershell
-$env:OPENCODE_IDEA_REAL_EDITOR="code --wait"
-```
+插件会：识别异常段 → 切换到 OpenCode 终端 → 使用 bracketed paste 将异常内容写入 OpenCode 输入区。
 
 ---
 
