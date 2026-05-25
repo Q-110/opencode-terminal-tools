@@ -1,5 +1,5 @@
 // 点击复制链接处理器 — 点击后将匹配文本复制到剪贴板并显示 "已复制" 提示
-package io.github.q110.opencodeterminaltools.copy
+package io.github.q110.aiterminaltools.copy
 
 import com.intellij.execution.filters.HyperlinkInfoBase
 import com.intellij.openapi.ide.CopyPasteManager

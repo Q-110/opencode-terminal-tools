@@ -1,5 +1,5 @@
-// 终端拖拽接收服务 — 将拖到任意终端标签的文件路径发送到已标记 OpenCode 终端
-package io.github.q110.opencodeterminaltools.bridge
+// 终端拖拽接收服务 — 将拖到当前激活终端标签的文件路径发送到该终端
+package io.github.q110.aiterminaltools.bridge
 
 import com.intellij.ide.dnd.DnDEvent
 import com.intellij.ide.dnd.DnDSupport
@@ -23,7 +23,7 @@ import com.intellij.ui.content.ContentManagerListener
 import org.jetbrains.plugins.terminal.TerminalToolWindowManager
 
 @Service(Service.Level.PROJECT)
-class OpenCodeTerminalDropService(
+class AiTerminalDropService(
     private val project: Project
 ) : Disposable {
     private val contentManagerListeners = mutableMapOf<ContentManager, ContentManagerListener>()
@@ -57,13 +57,13 @@ class OpenCodeTerminalDropService(
     }
 
     fun refreshDropTarget() {
-        val targetContent = currentMarkedContent()
+        val targetContent = currentActiveContent()
         dropTargetDisposables.keys
-            .filter { it !== targetContent }
+            .filter { it !== targetContent || !isRecordedAiTerminalContent(it) }
             .toList()
             .forEach { disposeDropTarget(it) }
 
-        if (targetContent != null) {
+        if (targetContent != null && isRecordedAiTerminalContent(targetContent)) {
             installForContent(targetContent)
         }
     }
@@ -98,51 +98,58 @@ class OpenCodeTerminalDropService(
         refreshDropTarget()
     }
 
-    private fun currentMarkedContent(): Content? {
+    private fun currentActiveContent(): Content? {
         val toolWindow = TerminalToolWindowManager.getInstance(project).toolWindow
             ?: ToolWindowManager.getInstance(project).getToolWindow(TERMINAL_TOOL_WINDOW_ID)
             ?: return null
-        val selectedContent = toolWindow.contentManager.selectedContent ?: return null
-        return if (project.service<OpenCodeBridgeService>().isActiveMarkedTerminalContent(selectedContent)) {
-            selectedContent
-        } else {
-            null
-        }
+        return toolWindow.contentManager.selectedContent
     }
 
     private fun installForContent(content: Content) {
+        if (!isRecordedAiTerminalContent(content)) {
+            return
+        }
         val component = content.component ?: return
         if (dropTargetDisposables.containsKey(content)) {
             return
         }
 
-        val disposable = Disposer.newDisposable("OpenCode terminal drop target")
+        val disposable = Disposer.newDisposable("AI terminal drop target")
         DnDSupport.createBuilder(component)
             .disableAsSource()
             .enableAsNativeTarget()
             .setTargetChecker { event ->
                 val files = draggedFiles(event)
-                val canDrop = files.isNotEmpty() &&
-                    project.service<OpenCodeBridgeService>().isActiveMarkedTerminalContent(content)
+                val canDrop = canHandleDrop(files, content)
                 if (canDrop) {
-                    event.setDropPossible(true, "发送路径到 OpenCode")
+                    event.setDropPossible(true, "发送路径到 AI Terminal")
                 }
                 canDrop
             }
             .setDropHandler { event ->
                 val files = draggedFiles(event)
-                if (files.isEmpty() || !project.service<OpenCodeBridgeService>().isActiveMarkedTerminalContent(content)) {
+                if (!canHandleDrop(files, content)) {
                     return@setDropHandler
                 }
-                val result = project.service<OpenCodeBridgeService>().sendDroppedPaths(files)
-                if (result is OpenCodeBridgeService.BridgeResult.Error) {
-                    OpenCodeBridgeService.notify(project, result.message, NotificationType.WARNING)
+                val result = project.service<AiTerminalBridgeService>().sendDroppedPaths(files)
+                if (result is AiTerminalBridgeService.BridgeResult.Error) {
+                    AiTerminalBridgeService.notify(project, result.message, NotificationType.WARNING)
                 }
             }
             .setDisposableParent(disposable)
             .install()
 
         dropTargetDisposables[content] = disposable
+    }
+
+    private fun canHandleDrop(files: List<VirtualFile>, content: Content): Boolean {
+        return files.isNotEmpty() &&
+            currentActiveContent() === content &&
+            isRecordedAiTerminalContent(content)
+    }
+
+    private fun isRecordedAiTerminalContent(content: Content): Boolean {
+        return project.service<AiTerminalBridgeService>().isRecordedAiTerminalContent(content)
     }
 
     private fun disposeDropTarget(content: Content) {

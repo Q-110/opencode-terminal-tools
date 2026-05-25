@@ -1,6 +1,6 @@
 <idea-plugin>
-    <id>io.github.q110.opencodeterminaltools</id>
-    <name>OpenCode Terminal Tools</name>
+    <id>io.github.q110.aiterminaltools</id>
+    <name>AI Terminal Tools</name>
     <vendor>zibo</vendor>
 
     <depends>com.intellij.modules.platform</depends>
@@ -9,57 +9,53 @@
     <depends optional="true" config-file="terminal-frontend.xml">intellij.terminal.frontend</depends>
 
     <extensions defaultExtensionNs="com.intellij">
-        <applicationService serviceImplementation="io.github.q110.opencodeterminaltools.settings.OpenCodeTerminalToolsSettings"/>
-        <projectService serviceImplementation="io.github.q110.opencodeterminaltools.bridge.OpenCodeBridgeService"/>
-        <projectService serviceImplementation="io.github.q110.opencodeterminaltools.bridge.OpenCodeTerminalDropService"/>
-        <projectService serviceImplementation="io.github.q110.opencodeterminaltools.console.OpenCodeConsoleErrorInlayService"/>
+        <applicationService serviceImplementation="io.github.q110.aiterminaltools.settings.AiTerminalToolsSettings"/>
+        <projectService serviceImplementation="io.github.q110.aiterminaltools.bridge.AiTerminalBridgeService"/>
+        <projectService serviceImplementation="io.github.q110.aiterminaltools.bridge.AiTerminalDropService"/>
+        <projectService serviceImplementation="io.github.q110.aiterminaltools.console.AiConsoleErrorInlayService"/>
         <applicationConfigurable
             parentId="tools"
-            instance="io.github.q110.opencodeterminaltools.settings.OpenCodeTerminalToolsConfigurable"
-            id="io.github.q110.opencodeterminaltools.settings.OpenCodeTerminalToolsConfigurable"
-            displayName="OpenCode Terminal Tools"/>
-        <consoleFilterProvider implementation="io.github.q110.opencodeterminaltools.filter.OpenCodeTerminalToolsFilterProvider"/>
-        <notificationGroup displayType="BALLOON" id="OpenCode Terminal Tools"/>
-        <postStartupActivity implementation="io.github.q110.opencodeterminaltools.bridge.OpenCodeTerminalToolsMenuRegistrar"/>
+            instance="io.github.q110.aiterminaltools.settings.AiTerminalToolsConfigurable"
+            id="io.github.q110.aiterminaltools.settings.AiTerminalToolsConfigurable"
+            displayName="AI Terminal Tools"/>
+        <consoleFilterProvider implementation="io.github.q110.aiterminaltools.filter.AiTerminalToolsFilterProvider"/>
+        <notificationGroup displayType="BALLOON" id="AI Terminal Tools"/>
+        <postStartupActivity implementation="io.github.q110.aiterminaltools.bridge.AiTerminalToolsMenuRegistrar"/>
     </extensions>
 
     <actions>
         <action
-            id="OpenCodeTerminalTools.SendSelectionToOpenCode"
-            class="io.github.q110.opencodeterminaltools.bridge.SendSelectionToOpenCodeAction"
+            id="AiTerminalTools.SendSelectionToAiTerminal"
+            class="io.github.q110.aiterminaltools.bridge.SendSelectionToAiTerminalAction"
             icon="/icons/send-selection.svg"
-            text="Send Selection to OpenCode"
-            description="Send the current editor selection to the marked OpenCode terminal">
+            text="发送选区到 AI Terminal"
+            description="发送当前编辑器选区到激活的 AI 终端">
             <keyboard-shortcut keymap="$default" first-keystroke="control alt COMMA"/>
         </action>
         <action
-            id="OpenCodeTerminalTools.SendPathToOpenCode"
-            class="io.github.q110.opencodeterminaltools.bridge.SendPathToOpenCodeAction"
+            id="AiTerminalTools.SendPathToAiTerminal"
+            class="io.github.q110.aiterminaltools.bridge.SendPathToAiTerminalAction"
             icon="/icons/send-selection.svg"
-            text="Send File Path to OpenCode"
-            description="Send the selected repository-relative path to the marked OpenCode terminal"/>
+            text="发送文件路径到 AI Terminal"
+            description="发送选中文件路径到激活的 AI 终端"/>
         <action
-            id="OpenCodeTerminalTools.StartOpenCodeTerminal"
-            class="io.github.q110.opencodeterminaltools.bridge.StartOpenCodeTerminalAction"
-            icon="/icons/send-selection.svg"
-            text="Start OpenCode Terminal"
-            description="Open a new terminal and run opencode with the OpenCode bridge environment"/>
+            id="AiTerminalTools.StartOpenCode"
+            class="io.github.q110.aiterminaltools.bridge.StartOpenCodeAction"
+            icon="/icons/opencode-official-action.png"
+            text="启动 OpenCode"
+            description="打开新终端并运行 opencode"/>
         <action
-            id="OpenCodeTerminalTools.MarkOpenCodeTerminal"
-            class="io.github.q110.opencodeterminaltools.bridge.MarkOpenCodeTerminalAction"
-            icon="/icons/send-selection.svg"
-            text="Mark as OpenCode Terminal"
-            description="Use this terminal tab as the OpenCode target">
-            <add-to-group group-id="Terminal.OutputContextMenu" anchor="last"/>
-            <add-to-group group-id="Terminal.PromptContextMenu" anchor="last"/>
-            <add-to-group group-id="ToolWindowContextMenu" anchor="last"/>
-        </action>
+            id="AiTerminalTools.StartClaudeCode"
+            class="io.github.q110.aiterminaltools.bridge.StartClaudeCodeAction"
+            icon="/icons/claude-code-official-action.png"
+            text="启动 Claude Code"
+            description="打开新终端并运行 claude"/>
         <action
-            id="OpenCodeTerminalTools.GenerateCommitMessage"
-            class="io.github.q110.opencodeterminaltools.bridge.GenerateCommitMessageAction"
+            id="AiTerminalTools.GenerateCommitMessage"
+            class="io.github.q110.aiterminaltools.bridge.GenerateCommitMessageAction"
             icon="/icons/send-selection.svg"
-            text="Generate Commit Message"
-            description="Generate a concise commit message from checked commit files">
+            text="生成提交信息"
+            description="根据已勾选文件生成简洁提交信息">
             <add-to-group group-id="ChangesView.CommitToolbar" anchor="after" relative-to-action="Vcs.MessageActionGroup"/>
         </action>
     </actions>

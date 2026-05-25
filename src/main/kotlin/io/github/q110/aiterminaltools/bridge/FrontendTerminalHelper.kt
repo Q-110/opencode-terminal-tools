@@ -1,4 +1,4 @@
-package io.github.q110.opencodeterminaltools.bridge
+package io.github.q110.aiterminaltools.bridge
 
 import com.intellij.notification.NotificationType
 import com.intellij.openapi.project.Project
@@ -6,7 +6,7 @@ import com.intellij.openapi.wm.IdeFocusManager
 import com.intellij.openapi.wm.ToolWindowManager
 import com.intellij.terminal.frontend.toolwindow.TerminalToolWindowTabsManager
 import com.intellij.ui.content.Content
-import io.github.q110.opencodeterminaltools.bridge.OpenCodeBridgeService.BridgeResult
+import io.github.q110.aiterminaltools.bridge.AiTerminalBridgeService.BridgeResult
 import java.awt.Component
 import java.awt.Robot
 import java.awt.event.KeyEvent
@@ -31,7 +31,7 @@ class FrontendTerminalHelper(
         return tabs().mapNotNull { contentOf(it)?.displayName }
     }
 
-    fun createOpenCodeTerminal(tabName: String, workingDirectory: String): Any {
+    fun createAiTerminal(tabName: String, workingDirectory: String): Any {
         return tabsManager.createTabBuilder()
             .workingDirectory(workingDirectory)
             .tabName(tabName)
@@ -40,7 +40,13 @@ class FrontendTerminalHelper(
             .createTab()
     }
 
-    fun runCommand(tab: Any, command: String): BridgeResult {
+    fun runCommand(
+        tab: Any,
+        command: String,
+        successMessage: String,
+        failurePrefix: String,
+        onCommandSent: () -> Unit = {}
+    ): BridgeResult {
         val content = contentOf(tab)
             ?: return BridgeResult.Error("Invalid frontend terminal tab.")
         val view = viewOf(tab)
@@ -53,21 +59,21 @@ class FrontendTerminalHelper(
                 .doWhenProcessed(Runnable {
                     val focusComponent = preferredFocusableComponent(view)
                     if (focusComponent == null) {
-                        OpenCodeBridgeService.notify(project, "Cannot focus the OpenCode terminal input component.", NotificationType.WARNING)
+                        AiTerminalBridgeService.notify(project, "Cannot focus the AI terminal input component.", NotificationType.WARNING)
                         return@Runnable
                     }
                     IdeFocusManager.getInstance(project)
                         .requestFocusInProject(focusComponent, project)
                         .doWhenDone(Runnable {
-            try {
-                sendText(view, command)
-                scheduleEnter(view, focusComponent, false, "Started OpenCode Terminal (frontend-api)")
+                            try {
+                                sendText(view, command)
+                                scheduleEnter(view, focusComponent, false, successMessage, onCommandSent)
                             } catch (exception: Throwable) {
-                                OpenCodeBridgeService.notify(project, "Failed to start OpenCode: ${exception.message}", NotificationType.WARNING)
+                                AiTerminalBridgeService.notify(project, "$failurePrefix: ${exception.message}", NotificationType.WARNING)
                             }
                         })
                         .doWhenRejected(Runnable {
-                            OpenCodeBridgeService.notify(project, "Cannot focus the OpenCode terminal input component.", NotificationType.WARNING)
+                            AiTerminalBridgeService.notify(project, "Cannot focus the AI terminal input component.", NotificationType.WARNING)
                         })
                 })
         }, true, true)
@@ -83,40 +89,6 @@ class FrontendTerminalHelper(
         return contentOf(tab) == content
     }
 
-    fun inject(tab: Any, settleAtLineEnd: Boolean, triggerText: String, isCommand: Boolean): BridgeResult {
-        val content = contentOf(tab)
-            ?: return BridgeResult.Error("Invalid frontend terminal tab.")
-        val view = viewOf(tab)
-            ?: return BridgeResult.Error("Invalid frontend terminal view.")
-        val toolWindow = ToolWindowManager.getInstance(project).getToolWindow(TERMINAL_TOOL_WINDOW_ID)
-            ?: return BridgeResult.Error("Terminal tool window was not found.")
-
-        toolWindow.activate(Runnable {
-            toolWindow.contentManager.setSelectedContentCB(content, true, true)
-                .doWhenProcessed(Runnable {
-                    val focusComponent = preferredFocusableComponent(view)
-                    if (focusComponent == null) {
-                        OpenCodeBridgeService.notify(project, "Cannot focus the OpenCode terminal input component.", NotificationType.WARNING)
-                        return@Runnable
-                    }
-                    val focusCallback = IdeFocusManager.getInstance(project)
-                        .requestFocusInProject(focusComponent, project)
-                    focusCallback.doWhenDone(Runnable {
-                        try {
-                            sendEditorCommand(view, focusComponent, settleAtLineEnd, triggerText, isCommand)
-                        } catch (exception: Throwable) {
-                            OpenCodeBridgeService.notify(project, "Failed to send editor_open to OpenCode: ${exception.message}", NotificationType.WARNING)
-                        }
-                    })
-                    focusCallback.doWhenRejected(Runnable {
-                        OpenCodeBridgeService.notify(project, "Cannot focus the OpenCode terminal input component.", NotificationType.WARNING)
-                    })
-                })
-        }, true, true)
-
-        return BridgeResult.Scheduled
-    }
-
     fun injectDirectInput(tab: Any, payload: String, settleAtLineEnd: Boolean): BridgeResult {
         val content = contentOf(tab)
             ?: return BridgeResult.Error("Invalid frontend terminal tab.")
@@ -130,7 +102,7 @@ class FrontendTerminalHelper(
                 .doWhenProcessed(Runnable {
                     val focusComponent = preferredFocusableComponent(view)
                     if (focusComponent == null) {
-                        OpenCodeBridgeService.notify(project, "Cannot focus the OpenCode terminal input component.", NotificationType.WARNING)
+                        AiTerminalBridgeService.notify(project, "Cannot focus the AI terminal input component.", NotificationType.WARNING)
                         return@Runnable
                     }
                     val focusCallback = IdeFocusManager.getInstance(project)
@@ -139,11 +111,11 @@ class FrontendTerminalHelper(
                         try {
                             sendDirectInput(view, focusComponent, payload, settleAtLineEnd)
                         } catch (exception: Throwable) {
-                            OpenCodeBridgeService.notify(project, "发送 OpenCode 输入失败：${exception.message}", NotificationType.WARNING)
+                            AiTerminalBridgeService.notify(project, "发送 AI Terminal 输入失败：${exception.message}", NotificationType.WARNING)
                         }
                     })
                     focusCallback.doWhenRejected(Runnable {
-                        OpenCodeBridgeService.notify(project, "Cannot focus the OpenCode terminal input component.", NotificationType.WARNING)
+                        AiTerminalBridgeService.notify(project, "Cannot focus the AI terminal input component.", NotificationType.WARNING)
                     })
                 })
         }, true, true)
@@ -164,32 +136,7 @@ class FrontendTerminalHelper(
         if (settleAtLineEnd) {
             scheduleLineEndSpace(view, focusComponent, true)
         } else {
-            OpenCodeBridgeService.notify(project, "已发送到 OpenCode", NotificationType.INFORMATION)
-        }
-    }
-
-    private fun sendEditorCommand(
-        view: Any,
-        focusComponent: JComponent,
-        settleAtLineEnd: Boolean,
-        triggerText: String,
-        isCommand: Boolean
-    ) {
-        try {
-            sendRawString(view, triggerText)
-        } catch (_: Throwable) {
-            if (isCommand) {
-                sendText(view, triggerText.trimEnd('\r'))
-            } else {
-                throw RuntimeException("Failed to send shortcut sequence.")
-            }
-        }
-        if (isCommand) {
-                scheduleEnter(view, focusComponent, settleAtLineEnd)
-        } else if (settleAtLineEnd) {
-            scheduleLineEndSpace(view, focusComponent, true)
-        } else {
-            OpenCodeBridgeService.notify(project, "Sent to OpenCode", NotificationType.INFORMATION)
+            AiTerminalBridgeService.notify(project, "已发送到 AI Terminal", NotificationType.INFORMATION)
         }
     }
 
@@ -197,7 +144,8 @@ class FrontendTerminalHelper(
         view: Any,
         focusComponent: JComponent,
         settleAtLineEnd: Boolean,
-        successMessage: String = "Sent to OpenCode"
+        successMessage: String = "已发送到 AI Terminal",
+        onEnterSent: () -> Unit = {}
     ) {
         val timer = Timer(100) {
             try {
@@ -205,17 +153,18 @@ class FrontendTerminalHelper(
                     .requestFocusInProject(focusComponent, project)
                     .doWhenDone(Runnable {
                         pressEnter(view, focusComponent)
+                        onEnterSent()
                         if (settleAtLineEnd) {
                             scheduleLineEndSpace(view, focusComponent, true)
                         } else {
-                            OpenCodeBridgeService.notify(project, successMessage, NotificationType.INFORMATION)
+                            AiTerminalBridgeService.notify(project, successMessage, NotificationType.INFORMATION)
                         }
                     })
                     .doWhenRejected(Runnable {
-                        OpenCodeBridgeService.notify(project, "Cannot refocus the OpenCode terminal after editor_open.", NotificationType.WARNING)
+                        AiTerminalBridgeService.notify(project, "Cannot refocus the AI terminal.", NotificationType.WARNING)
                     })
             } catch (exception: Throwable) {
-                OpenCodeBridgeService.notify(project, "Failed to invoke Enter: ${exception.message}", NotificationType.WARNING)
+                AiTerminalBridgeService.notify(project, "Failed to invoke Enter: ${exception.message}", NotificationType.WARNING)
             }
         }
         timer.isRepeats = false
@@ -230,14 +179,14 @@ class FrontendTerminalHelper(
                     .doWhenDone(Runnable {
                         sendLineEndSpace(view)
                         if (notifyAfter) {
-                            OpenCodeBridgeService.notify(project, "Sent to OpenCode", NotificationType.INFORMATION)
+                            AiTerminalBridgeService.notify(project, "已发送到 AI Terminal", NotificationType.INFORMATION)
                         }
                     })
                     .doWhenRejected(Runnable {
-                        OpenCodeBridgeService.notify(project, "Cannot focus the OpenCode terminal input component.", NotificationType.WARNING)
+                        AiTerminalBridgeService.notify(project, "Cannot focus the AI terminal input component.", NotificationType.WARNING)
                     })
             } catch (exception: Throwable) {
-                OpenCodeBridgeService.notify(project, "Failed to send trailing space to OpenCode: ${exception.message}", NotificationType.WARNING)
+                AiTerminalBridgeService.notify(project, "发送 AI Terminal 行尾空格失败：${exception.message}", NotificationType.WARNING)
             }
         }
         timer.isRepeats = false

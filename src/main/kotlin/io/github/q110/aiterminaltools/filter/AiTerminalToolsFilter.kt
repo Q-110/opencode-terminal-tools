@@ -1,5 +1,5 @@
 // 核心 Filter — 解析终端每一行输出，生成文件跳转链接和点击复制链接
-package io.github.q110.opencodeterminaltools.filter
+package io.github.q110.aiterminaltools.filter
 
 import com.intellij.execution.filters.Filter
 import com.intellij.openapi.application.ReadAction
@@ -8,12 +8,12 @@ import com.intellij.openapi.project.Project
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.psi.search.FilenameIndex
 import com.intellij.psi.search.GlobalSearchScope
-import io.github.q110.opencodeterminaltools.copy.CopyTextHyperlinkInfo
-import io.github.q110.opencodeterminaltools.jump.FileReferenceHyperlinkInfo
-import io.github.q110.opencodeterminaltools.jump.FolderReferenceHyperlinkInfo
-import io.github.q110.opencodeterminaltools.settings.OpenCodeTerminalToolsSettings
+import io.github.q110.aiterminaltools.copy.CopyTextHyperlinkInfo
+import io.github.q110.aiterminaltools.jump.FileReferenceHyperlinkInfo
+import io.github.q110.aiterminaltools.jump.FolderReferenceHyperlinkInfo
+import io.github.q110.aiterminaltools.settings.AiTerminalToolsSettings
 
-internal class OpenCodeTerminalToolsFilter(
+internal class AiTerminalToolsFilter(
     private val project: Project
 ) : Filter {
     /** LRU 缓存：文件名 → 最近出现的路径 */
@@ -22,7 +22,7 @@ internal class OpenCodeTerminalToolsFilter(
 
     /** @param line 当前输出行文本，entireLength 整段内容总长度（用于计算 baseOffset） */
     override fun applyFilter(line: String, entireLength: Int): Filter.Result? {
-        val settings = OpenCodeTerminalToolsSettings.getInstance().getState()
+        val settings = AiTerminalToolsSettings.getInstance().getState()
         if (!settings.fileLinksEnabled && !settings.copyLinksEnabled) {
             return null
         }

@@ -1,4 +1,4 @@
-package io.github.q110.opencodeterminaltools.bridge
+package io.github.q110.aiterminaltools.bridge
 
 import com.intellij.notification.NotificationType
 import com.intellij.openapi.project.Project
@@ -9,7 +9,7 @@ import org.jetbrains.plugins.terminal.TerminalToolWindowManager
 class LegacyReworkedTerminalHelper(
     private val project: Project
 ) {
-    fun createOpenCodeTerminal(tabName: String, workingDirectory: String): TerminalWidget? {
+    fun createAiTerminal(tabName: String, workingDirectory: String): TerminalWidget? {
         val manager = TerminalToolWindowManager.getInstance(project)
         val toolWindow = manager.toolWindow ?: return null
         val contentManager = toolWindow.contentManager
@@ -33,31 +33,39 @@ class LegacyReworkedTerminalHelper(
         return null
     }
 
-    fun runCommand(widget: TerminalWidget, command: String): OpenCodeBridgeService.BridgeResult {
+    fun runCommand(
+        widget: TerminalWidget,
+        command: String,
+        successMessage: String,
+        failurePrefix: String,
+        onCommandSent: () -> Unit = {}
+    ): AiTerminalBridgeService.BridgeResult {
         val toolWindow = ToolWindowManager.getInstance(project).getToolWindow(TERMINAL_TOOL_WINDOW_ID)
-            ?: return OpenCodeBridgeService.BridgeResult.Error("Terminal tool window was not found.")
+            ?: return AiTerminalBridgeService.BridgeResult.Error("Terminal tool window was not found.")
 
         toolWindow.activate(Runnable {
             try {
                 widget.requestFocus()
                 widget.sendCommandToExecute(command)
-                OpenCodeBridgeService.notify(project, "Started OpenCode Terminal (legacy-reworked-best-effort)", NotificationType.INFORMATION)
+                onCommandSent()
+                AiTerminalBridgeService.notify(project, successMessage, NotificationType.INFORMATION)
             } catch (exception: Throwable) {
                 try {
                     val connector = widget.ttyConnector
                     if (connector != null && connector.isConnected) {
                         connector.write("$command\r")
-                        OpenCodeBridgeService.notify(project, "Started OpenCode Terminal (legacy-reworked-best-effort)", NotificationType.INFORMATION)
+                        onCommandSent()
+                        AiTerminalBridgeService.notify(project, successMessage, NotificationType.INFORMATION)
                     } else {
-                        OpenCodeBridgeService.notify(project, "Failed to run opencode: terminal input is unavailable.", NotificationType.WARNING)
+                        AiTerminalBridgeService.notify(project, "$failurePrefix: terminal input is unavailable.", NotificationType.WARNING)
                     }
                 } catch (writeException: Throwable) {
-                    OpenCodeBridgeService.notify(project, "Failed to run opencode: ${writeException.message}", NotificationType.WARNING)
+                    AiTerminalBridgeService.notify(project, "$failurePrefix: ${writeException.message}", NotificationType.WARNING)
                 }
             }
         }, true, true)
 
-        return OpenCodeBridgeService.BridgeResult.Scheduled
+        return AiTerminalBridgeService.BridgeResult.Scheduled
     }
 
     private fun tryCreateTab(

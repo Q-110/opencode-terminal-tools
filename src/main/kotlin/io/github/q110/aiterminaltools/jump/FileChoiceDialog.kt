@@ -1,5 +1,5 @@
 // 同名文件选择弹窗 — 当多个文件匹配时让用户手动选择
-package io.github.q110.opencodeterminaltools.jump
+package io.github.q110.aiterminaltools.jump
 
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.DialogWrapper
@@ -7,7 +7,7 @@ import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.openapi.wm.WindowManager
 import com.intellij.ui.components.JBList
 import com.intellij.ui.components.JBScrollPane
-import io.github.q110.opencodeterminaltools.filter.displayPath
+import io.github.q110.aiterminaltools.filter.displayPath
 import java.awt.BorderLayout
 import java.awt.Dimension
 import java.awt.Toolkit

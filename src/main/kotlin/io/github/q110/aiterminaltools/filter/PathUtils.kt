@@ -1,5 +1,5 @@
 // 路径工具函数 — VirtualFile 查找、规范化、匹配
-package io.github.q110.opencodeterminaltools.filter
+package io.github.q110.aiterminaltools.filter
 
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.roots.ProjectRootManager

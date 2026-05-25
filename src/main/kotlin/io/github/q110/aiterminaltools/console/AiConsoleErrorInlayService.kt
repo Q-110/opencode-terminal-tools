@@ -1,4 +1,4 @@
-package io.github.q110.opencodeterminaltools.console
+package io.github.q110.aiterminaltools.console
 
 import com.intellij.ide.DataManager
 import com.intellij.notification.NotificationType
@@ -22,8 +22,8 @@ import com.intellij.openapi.editor.markup.TextAttributes
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.IconLoader
 import com.intellij.openapi.util.TextRange
-import io.github.q110.opencodeterminaltools.bridge.OpenCodeBridgeService
-import io.github.q110.opencodeterminaltools.settings.OpenCodeTerminalToolsSettings
+import io.github.q110.aiterminaltools.bridge.AiTerminalBridgeService
+import io.github.q110.aiterminaltools.settings.AiTerminalToolsSettings
 import java.awt.Cursor
 import java.awt.Graphics
 import java.awt.Rectangle
@@ -31,7 +31,7 @@ import javax.swing.Icon
 import javax.swing.JComponent
 
 @Service(Service.Level.PROJECT)
-class OpenCodeConsoleErrorInlayService(
+class AiConsoleErrorInlayService(
     private val project: Project
 ) : Disposable {
     private val editorFactory = com.intellij.openapi.editor.EditorFactory.getInstance()
@@ -90,7 +90,7 @@ class OpenCodeConsoleErrorInlayService(
             return
         }
 
-        if (!settings().errorToOpenCodeIconsEnabled) {
+        if (!settings().errorToAiTerminalIconsEnabled) {
             disposeDocumentInlays(document)
             return
         }
@@ -129,9 +129,9 @@ class OpenCodeConsoleErrorInlayService(
         }
     }
 
-    private fun sendErrorToOpenCode(editor: Editor, rangeMarker: RangeMarker) {
+    private fun sendErrorToAiTerminal(editor: Editor, rangeMarker: RangeMarker) {
         if (!rangeMarker.isValid) {
-            OpenCodeBridgeService.notify(project, "The console error is no longer available.", NotificationType.WARNING)
+            AiTerminalBridgeService.notify(project, "The console error is no longer available.", NotificationType.WARNING)
             return
         }
 
@@ -140,20 +140,20 @@ class OpenCodeConsoleErrorInlayService(
         val endOffset = rangeMarker.endOffset.coerceIn(startOffset, document.textLength)
         val errorText = document.getText(TextRange(startOffset, endOffset)).trim()
         if (errorText.isEmpty()) {
-            OpenCodeBridgeService.notify(project, "The console error is empty.", NotificationType.WARNING)
+            AiTerminalBridgeService.notify(project, "The console error is empty.", NotificationType.WARNING)
             return
         }
 
         val payload = "控制台错误：\n-------\n$errorText\n-------\n"
         val dataContext = DataManager.getInstance().getDataContext(editor.component)
-        when (val result = OpenCodeBridgeService.getInstance(project).sendDirectPaste(payload, dataContext)) {
-            is OpenCodeBridgeService.BridgeResult.Success -> {
-                OpenCodeBridgeService.notify(project, "已发送控制台错误到 OpenCode", NotificationType.INFORMATION)
+        when (val result = AiTerminalBridgeService.getInstance(project).sendDirectPaste(payload, dataContext)) {
+            is AiTerminalBridgeService.BridgeResult.Success -> {
+                AiTerminalBridgeService.notify(project, "已发送控制台错误到 AI Terminal", NotificationType.INFORMATION)
             }
-            is OpenCodeBridgeService.BridgeResult.Scheduled -> {
+            is AiTerminalBridgeService.BridgeResult.Scheduled -> {
             }
-            is OpenCodeBridgeService.BridgeResult.Error -> {
-                OpenCodeBridgeService.notify(project, result.message, NotificationType.WARNING)
+            is AiTerminalBridgeService.BridgeResult.Error -> {
+                AiTerminalBridgeService.notify(project, result.message, NotificationType.WARNING)
             }
         }
     }
@@ -180,15 +180,15 @@ class OpenCodeConsoleErrorInlayService(
         documentInlays.clear()
     }
 
-    private fun settings(): OpenCodeTerminalToolsSettings.StateData {
-        return OpenCodeTerminalToolsSettings.getInstance().getState()
+    private fun settings(): AiTerminalToolsSettings.StateData {
+        return AiTerminalToolsSettings.getInstance().getState()
     }
 
     private inner class ConsoleErrorMouseListener : EditorMouseListener {
         override fun mouseClicked(event: EditorMouseEvent) {
             val renderer = event.inlay?.renderer as? ConsoleErrorInlayRenderer ?: return
             event.consume()
-            sendErrorToOpenCode(event.editor, renderer.rangeMarker)
+            sendErrorToAiTerminal(event.editor, renderer.rangeMarker)
         }
     }
 
@@ -207,7 +207,7 @@ class OpenCodeConsoleErrorInlayService(
                 previousCursor = component.cursor
                 previousToolTipText = component.toolTipText
                 component.cursor = Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
-                component.toolTipText = "Send console error to OpenCode"
+                component.toolTipText = "Send console error to AI Terminal"
             } else {
                 clearErrorIconHover()
             }
@@ -240,7 +240,7 @@ class OpenCodeConsoleErrorInlayService(
         private val project: Project,
         val rangeMarker: RangeMarker
     ) : EditorCustomElementRenderer {
-        private val icon: Icon = IconLoader.getIcon("/icons/send-selection.svg", OpenCodeConsoleErrorInlayService::class.java)
+        private val icon: Icon = IconLoader.getIcon("/icons/send-selection.svg", AiConsoleErrorInlayService::class.java)
 
         override fun calcWidthInPixels(inlay: Inlay<*>): Int {
             return icon.iconWidth + HORIZONTAL_PADDING * 2

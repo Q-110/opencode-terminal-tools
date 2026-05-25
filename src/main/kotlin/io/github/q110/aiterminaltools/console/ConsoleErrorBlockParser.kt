@@ -1,4 +1,4 @@
-package io.github.q110.opencodeterminaltools.console
+package io.github.q110.aiterminaltools.console
 
 import com.intellij.openapi.editor.Document
 

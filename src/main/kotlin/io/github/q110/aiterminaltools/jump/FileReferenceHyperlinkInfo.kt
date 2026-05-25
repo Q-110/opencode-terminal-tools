@@ -1,5 +1,5 @@
 // 文件跳转链接处理器 — 点击后自动选择最佳文件并跳转到指定行
-package io.github.q110.opencodeterminaltools.jump
+package io.github.q110.aiterminaltools.jump
 
 import com.intellij.execution.filters.HyperlinkInfo
 import com.intellij.openapi.editor.ScrollType
@@ -7,9 +7,9 @@ import com.intellij.openapi.fileEditor.FileEditorManager
 import com.intellij.openapi.fileEditor.OpenFileDescriptor
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.vfs.VirtualFile
-import io.github.q110.opencodeterminaltools.filter.displayPath
-import io.github.q110.opencodeterminaltools.filter.normalizePath
-import io.github.q110.opencodeterminaltools.filter.pathMatches
+import io.github.q110.aiterminaltools.filter.displayPath
+import io.github.q110.aiterminaltools.filter.normalizePath
+import io.github.q110.aiterminaltools.filter.pathMatches
 
 internal class FileReferenceHyperlinkInfo(
     private val project: Project,

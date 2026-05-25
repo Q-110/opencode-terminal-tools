@@ -1,4 +1,4 @@
-package io.github.q110.opencodeterminaltools.bridge
+package io.github.q110.aiterminaltools.bridge
 
 import com.intellij.icons.AllIcons
 import com.intellij.notification.NotificationType
@@ -18,7 +18,7 @@ import com.intellij.openapi.vcs.VcsDataKeys
 import com.intellij.openapi.vcs.changes.Change
 import com.intellij.vcs.commit.CommitMessageUi
 import com.intellij.vcs.commit.CommitWorkflowUi
-import io.github.q110.opencodeterminaltools.settings.OpenCodeTerminalToolsSettings
+import io.github.q110.aiterminaltools.settings.AiTerminalToolsSettings
 import java.io.File
 import java.nio.charset.StandardCharsets
 import java.nio.file.Files
@@ -43,14 +43,14 @@ class GenerateCommitMessageAction : AnAction(AllIcons.Debugger.Console) {
         val project = event.project ?: return
         val workflowUi = event.getData(VcsDataKeys.COMMIT_WORKFLOW_UI)
         if (workflowUi == null) {
-            OpenCodeBridgeService.notify(project, "没有找到 Commit 面板上下文。", NotificationType.WARNING)
+            AiTerminalBridgeService.notify(project, "没有找到 Commit 面板上下文。", NotificationType.WARNING)
             return
         }
 
         val includedChanges = workflowUi.getIncludedChanges()
         val includedUnversionedFiles = workflowUi.getIncludedUnversionedFiles()
         if (includedChanges.isEmpty() && includedUnversionedFiles.isEmpty()) {
-            OpenCodeBridgeService.notify(project, "请先勾选要提交的文件。", NotificationType.WARNING)
+            AiTerminalBridgeService.notify(project, "请先勾选要提交的文件。", NotificationType.WARNING)
             return
         }
 
@@ -95,15 +95,15 @@ class GenerateCommitMessageAction : AnAction(AllIcons.Debugger.Console) {
                 invokeOnEdt {
                     commitMessageUi.setText(generatedMessage)
                     commitMessageUi.focus()
-                    OpenCodeBridgeService.notify(project, "已生成提交信息", NotificationType.INFORMATION)
+                    AiTerminalBridgeService.notify(project, "已生成提交信息", NotificationType.INFORMATION)
                 }
             } catch (exception: CommitMessageGenerationException) {
                 invokeOnEdt {
-                    OpenCodeBridgeService.notify(project, exception.message ?: "生成提交信息失败", NotificationType.WARNING)
+                    AiTerminalBridgeService.notify(project, exception.message ?: "生成提交信息失败", NotificationType.WARNING)
                 }
             } catch (exception: Throwable) {
                 invokeOnEdt {
-                    OpenCodeBridgeService.notify(project, "生成提交信息失败：${exception.message}", NotificationType.WARNING)
+                    AiTerminalBridgeService.notify(project, "生成提交信息失败：${exception.message}", NotificationType.WARNING)
                 }
             } finally {
                 invokeOnEdt {
@@ -156,7 +156,7 @@ class GenerateCommitMessageAction : AnAction(AllIcons.Debugger.Console) {
         fun generate(indicator: ProgressIndicator): String {
             val basePath = project.basePath
                 ?: throw CommitMessageGenerationException("项目没有可用的工作目录。")
-            val settings = OpenCodeTerminalToolsSettings.getInstance().getState()
+            val settings = AiTerminalToolsSettings.getInstance().getState()
             val prompt = buildPrompt(changeSummary)
             val configHome = createOpenCodeConfigHome()
             val basePathPath = Path.of(basePath).toAbsolutePath().normalize()

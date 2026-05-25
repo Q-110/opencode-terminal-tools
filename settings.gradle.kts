@@ -5,4 +5,4 @@ pluginManagement {
     }
 }
 
-rootProject.name = "opencode-terminal-tools"
+rootProject.name = "ai-terminal-tools"
