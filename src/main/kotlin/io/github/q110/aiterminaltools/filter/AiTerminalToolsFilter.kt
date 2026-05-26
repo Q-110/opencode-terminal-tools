@@ -19,6 +19,9 @@ internal class AiTerminalToolsFilter(
     /** LRU 缓存：文件名 → 最近出现的路径 */
     private val recentFilePathsByName = LinkedHashMap<String, String>()
     private val copyTextAttributes = TextAttributes()
+    private var cachedFileExtensions: Set<String> = emptySet()
+    private var cachedFileRefPattern: Regex =
+        FilterPatterns.fileRefPattern(AiTerminalToolsSettings.StateData.DEFAULT_FILE_EXTENSIONS)
 
     /** @param line 当前输出行文本，entireLength 整段内容总长度（用于计算 baseOffset） */
     override fun applyFilter(line: String, entireLength: Int): Filter.Result? {
@@ -29,7 +32,8 @@ internal class AiTerminalToolsFilter(
 
         // 阶段一：缓存当前行中的文件路径引用
         if (settings.fileLinksEnabled) {
-            rememberPathReferences(line)
+            val fileRefPattern = currentFileRefPattern(settings.resolvedFileExtensions())
+            rememberPathReferences(line, fileRefPattern)
         }
 
         val baseOffset = entireLength - line.length
@@ -71,7 +75,8 @@ internal class AiTerminalToolsFilter(
             }
 
             // 阶段三：解析常规文件引用（按文件名索引，可能多匹配）
-            for (match in FilterPatterns.fileRefPattern.findAll(line)) {
+            val fileRefPattern = currentFileRefPattern(settings.resolvedFileExtensions())
+            for (match in fileRefPattern.findAll(line)) {
                 if (rangesOverlap(match.range, fileLinkRanges)) continue
 
                 val reference = normalizePath(match.groupValues[1])
@@ -116,6 +121,16 @@ internal class AiTerminalToolsFilter(
         return if (items.isEmpty()) null else Filter.Result(items)
     }
 
+    /** 复用已编译正则，仅在设置中的扩展名集合变化时刷新。 */
+    private fun currentFileRefPattern(extensions: Set<String>): Regex {
+        if (extensions != cachedFileExtensions) {
+            cachedFileExtensions = extensions
+            cachedFileRefPattern = FilterPatterns.fileRefPattern(extensions)
+        }
+
+        return cachedFileRefPattern
+    }
+
     /** 在 ReadAction 中按路径查找 VirtualFile */
     private fun findProjectPathReference(path: String): VirtualFile? {
         return ReadAction.compute<VirtualFile?, RuntimeException> {
@@ -136,8 +151,8 @@ internal class AiTerminalToolsFilter(
     }
 
     /** 缓存当前行中的路径到 LRU map，供后续同名文件消除歧义 */
-    private fun rememberPathReferences(line: String) {
-        for (match in FilterPatterns.fileRefPattern.findAll(line)) {
+    private fun rememberPathReferences(line: String, fileRefPattern: Regex) {
+        for (match in fileRefPattern.findAll(line)) {
             val path = normalizePath(match.groupValues[1])
             if (!isPathReference(path)) continue
 

@@ -4,6 +4,7 @@ import com.intellij.openapi.options.Configurable
 import com.intellij.ui.JBColor
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBCheckBox
+import com.intellij.ui.components.JBTextArea
 import com.intellij.ui.components.JBTextField
 import com.intellij.util.ui.JBUI
 import java.awt.GridBagConstraints
@@ -18,6 +19,7 @@ class AiTerminalToolsConfigurable : Configurable {
     private var errorToAiTerminalIconsCheckBox: JBCheckBox? = null
     private var dragToAiTerminalCheckBox: JBCheckBox? = null
     private var commitMessageModelField: JBTextField? = null
+    private var additionalFileExtensionsField: JBTextField? = null
     private var panel: JPanel? = null
 
     override fun getDisplayName(): String {
@@ -30,6 +32,10 @@ class AiTerminalToolsConfigurable : Configurable {
         val errorToAiTerminalIconsCheckBox = JBCheckBox("启用控制台错误发送图标")
         val dragToAiTerminalCheckBox = JBCheckBox("启用拖拽文件/文件夹到 AI 终端")
         val commitMessageModelField = JBTextField()
+        val additionalFileExtensionsField = JBTextField()
+        val defaultFileExtensionsArea = JBTextArea(
+            AiTerminalToolsSettings.StateData.DEFAULT_FILE_EXTENSIONS.joinToString(", ")
+        )
         val panel = JPanel(GridBagLayout())
         panel.border = JBUI.Borders.empty(12)
 
@@ -68,19 +74,43 @@ class AiTerminalToolsConfigurable : Configurable {
 
         constraints.gridy = 6
         constraints.insets = JBUI.insetsTop(16)
-        panel.add(JLabel("提交信息模型："), constraints)
+        panel.add(JLabel("额外文件扩展名："), constraints)
 
         constraints.gridy = 7
         constraints.insets = JBUI.insetsTop(4)
-        panel.add(commitMessageModelField, constraints)
+        panel.add(additionalFileExtensionsField, constraints)
 
         constraints.gridy = 8
+        val additionalExtensionsHelpLabel = JBLabel("下面列表已默认支持，额外扩展名只填写未包含的项；逗号、分号、空格或换行分隔。")
+        additionalExtensionsHelpLabel.foreground = JBColor.namedColor("Label.disabledForeground", JBColor(0x8c8c8c, 0x999999))
+        additionalExtensionsHelpLabel.border = JBUI.Borders.emptyLeft(20)
+        panel.add(additionalExtensionsHelpLabel, constraints)
+
+        constraints.gridy = 9
+        constraints.insets = JBUI.insetsTop(4)
+        defaultFileExtensionsArea.isEditable = false
+        defaultFileExtensionsArea.lineWrap = true
+        defaultFileExtensionsArea.wrapStyleWord = true
+        defaultFileExtensionsArea.isOpaque = false
+        defaultFileExtensionsArea.foreground = JBColor.namedColor("Label.disabledForeground", JBColor(0x8c8c8c, 0x999999))
+        defaultFileExtensionsArea.border = JBUI.Borders.emptyLeft(20)
+        panel.add(defaultFileExtensionsArea, constraints)
+
+        constraints.gridy = 10
+        constraints.insets = JBUI.insetsTop(16)
+        panel.add(JLabel("提交信息模型："), constraints)
+
+        constraints.gridy = 11
+        constraints.insets = JBUI.insetsTop(4)
+        panel.add(commitMessageModelField, constraints)
+
+        constraints.gridy = 12
         val commitMessageHelpLabel = JBLabel("格式：provider/model，留空用默认模型。")
         commitMessageHelpLabel.foreground = JBColor.namedColor("Label.disabledForeground", JBColor(0x8c8c8c, 0x999999))
         commitMessageHelpLabel.border = JBUI.Borders.emptyLeft(20)
         panel.add(commitMessageHelpLabel, constraints)
 
-        constraints.gridy = 9
+        constraints.gridy = 13
         constraints.weighty = 1.0
         constraints.fill = GridBagConstraints.BOTH
         panel.add(JPanel(), constraints)
@@ -90,6 +120,7 @@ class AiTerminalToolsConfigurable : Configurable {
         this.errorToAiTerminalIconsCheckBox = errorToAiTerminalIconsCheckBox
         this.dragToAiTerminalCheckBox = dragToAiTerminalCheckBox
         this.commitMessageModelField = commitMessageModelField
+        this.additionalFileExtensionsField = additionalFileExtensionsField
         this.panel = panel
         return panel
     }
@@ -100,6 +131,7 @@ class AiTerminalToolsConfigurable : Configurable {
             copyLinksCheckBox?.isSelected != settings.copyLinksEnabled ||
             errorToAiTerminalIconsCheckBox?.isSelected != settings.errorToAiTerminalIconsEnabled ||
             dragToAiTerminalCheckBox?.isSelected != settings.isDragToAiTerminalEnabled() ||
+            additionalFileExtensionsField?.text?.trim() != settings.additionalFileExtensions ||
             commitMessageModelField?.text?.trim() != settings.commitMessageModel
     }
 
@@ -109,6 +141,7 @@ class AiTerminalToolsConfigurable : Configurable {
         settings.copyLinksEnabled = copyLinksCheckBox?.isSelected == true
         settings.errorToAiTerminalIconsEnabled = errorToAiTerminalIconsCheckBox?.isSelected == true
         settings.dragToAiTerminalEnabled = dragToAiTerminalCheckBox?.isSelected == true
+        settings.additionalFileExtensions = additionalFileExtensionsField?.text?.trim().orEmpty()
         settings.commitMessageModel = commitMessageModelField?.text?.trim().orEmpty()
     }
 
@@ -118,6 +151,7 @@ class AiTerminalToolsConfigurable : Configurable {
         copyLinksCheckBox?.isSelected = settings.copyLinksEnabled
         errorToAiTerminalIconsCheckBox?.isSelected = settings.errorToAiTerminalIconsEnabled
         dragToAiTerminalCheckBox?.isSelected = settings.isDragToAiTerminalEnabled()
+        additionalFileExtensionsField?.text = settings.additionalFileExtensions
         commitMessageModelField?.text = settings.commitMessageModel
     }
 
@@ -127,6 +161,7 @@ class AiTerminalToolsConfigurable : Configurable {
         errorToAiTerminalIconsCheckBox = null
         dragToAiTerminalCheckBox = null
         commitMessageModelField = null
+        additionalFileExtensionsField = null
         panel = null
     }
 }

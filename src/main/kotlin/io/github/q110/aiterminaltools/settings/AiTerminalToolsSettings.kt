@@ -30,10 +30,40 @@ class AiTerminalToolsSettings : PersistentStateComponent<AiTerminalToolsSettings
         var errorToAiTerminalIconsEnabled: Boolean = true
         var dragToAiTerminalEnabled: Boolean? = null
         var commitMessageModel: String = ""
+        var additionalFileExtensions: String = ""
 
         /** 已有配置文件反序列化时缺少该字段，兜底默认开启 */
         fun isDragToAiTerminalEnabled(): Boolean {
             return dragToAiTerminalEnabled ?: true
+        }
+
+        /** 合并默认扩展名和用户追加扩展名。 */
+        fun resolvedFileExtensions(): Set<String> {
+            val customExtensions = additionalFileExtensions
+                .split(",", ";", " ", "\n")
+                .map { it.trim().removePrefix(".").lowercase() }
+                .filter { it.isNotEmpty() && it.matches(EXTENSION_PATTERN) }
+                .toSet()
+
+            return DEFAULT_FILE_EXTENSIONS + customExtensions
+        }
+
+        companion object {
+            private val EXTENSION_PATTERN = Regex("[a-z][a-z0-9]*")
+
+            val DEFAULT_FILE_EXTENSIONS = setOf(
+                "java", "kt", "kts", "scala", "groovy", "gradle",
+                "js", "jsx", "mjs", "cjs", "ts", "tsx", "vue", "svelte",
+                "html", "htm", "css", "scss", "sass", "less",
+                "py", "pyi", "pyx", "go", "rs", "rb", "php", "swift",
+                "c", "cpp", "cc", "cxx", "h", "hpp", "hh", "hxx",
+                "sh", "bash", "zsh", "ps1", "bat", "cmd",
+                "json", "jsonc", "toml", "yaml", "yml", "ini", "cfg", "conf",
+                "env", "properties", "proto", "xml", "xsl", "xsd",
+                "md", "mdx", "rst", "tex", "adoc",
+                "sql",
+                "j2", "jinja", "jinja2", "mustache", "hbs", "ejs", "twig"
+            )
         }
     }
 
