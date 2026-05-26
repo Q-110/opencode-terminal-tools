@@ -29,7 +29,10 @@ class AiTerminalToolsSettings : PersistentStateComponent<AiTerminalToolsSettings
         var copyLinksEnabled: Boolean = true
         var errorToAiTerminalIconsEnabled: Boolean = true
         var dragToAiTerminalEnabled: Boolean? = null
+        var commitMessageAiTool: String = "opencode"
         var commitMessageModel: String = ""
+        var claudeCommitMessageModel: String = ""
+        var commitMessageAdditionalPrompt: String = ""
         var additionalFileExtensions: String = ""
 
         /** 已有配置文件反序列化时缺少该字段，兜底默认开启 */
@@ -37,10 +40,16 @@ class AiTerminalToolsSettings : PersistentStateComponent<AiTerminalToolsSettings
             return dragToAiTerminalEnabled ?: true
         }
 
+        /** 用户未配置附加提示词时使用插件默认附加提示词。 */
+        fun resolvedCommitMessageAdditionalPrompt(): String {
+            val customPrompt = commitMessageAdditionalPrompt.trim()
+            return if (customPrompt.isNotEmpty()) customPrompt else DEFAULT_COMMIT_MESSAGE_ADDITIONAL_PROMPT
+        }
+
         /** 合并默认扩展名和用户追加扩展名。 */
         fun resolvedFileExtensions(): Set<String> {
             val customExtensions = additionalFileExtensions
-                .split(",", ";", " ", "\n")
+                .split(";")
                 .map { it.trim().removePrefix(".").lowercase() }
                 .filter { it.isNotEmpty() && it.matches(EXTENSION_PATTERN) }
                 .toSet()
@@ -51,18 +60,20 @@ class AiTerminalToolsSettings : PersistentStateComponent<AiTerminalToolsSettings
         companion object {
             private val EXTENSION_PATTERN = Regex("[a-z][a-z0-9]*")
 
+            const val DEFAULT_COMMIT_MESSAGE_BASE_PROMPT: String =
+                "生成简洁的中文提交信息，按条目输出，不要过度思考，以最快的速度生成结果条目。"
+
+            const val DEFAULT_COMMIT_MESSAGE_ADDITIONAL_PROMPT: String =
+                "只写变更结果，不写技术细节。每条尽量短，避免出现反引号、Markdown 代码块、英文长句和具体实现描述，只输出普通文本条目。"
+
             val DEFAULT_FILE_EXTENSIONS = setOf(
-                "java", "kt", "kts", "scala", "groovy", "gradle",
-                "js", "jsx", "mjs", "cjs", "ts", "tsx", "vue", "svelte",
-                "html", "htm", "css", "scss", "sass", "less",
-                "py", "pyi", "pyx", "go", "rs", "rb", "php", "swift",
-                "c", "cpp", "cc", "cxx", "h", "hpp", "hh", "hxx",
-                "sh", "bash", "zsh", "ps1", "bat", "cmd",
-                "json", "jsonc", "toml", "yaml", "yml", "ini", "cfg", "conf",
-                "env", "properties", "proto", "xml", "xsl", "xsd",
-                "md", "mdx", "rst", "tex", "adoc",
-                "sql",
-                "j2", "jinja", "jinja2", "mustache", "hbs", "ejs", "twig"
+                "java", "kt", "kts", "gradle",
+                "js", "ts", "vue",
+                "html", "css", "scss", "sass", "less",
+                "py", "c", "cpp", "cc",
+                "ps1", "cmd",
+                "json", "toml", "yaml", "yml", "conf", "env", "properties", "xml",
+                "md", "sql"
             )
         }
     }

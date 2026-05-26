@@ -60,8 +60,17 @@ class GenerateCommitMessageAction : AnAction(AllIcons.Debugger.Console) {
             return
         }
 
+        val settings = AiTerminalToolsSettings.getInstance().getState()
+        val commitMessageAiTool = normalizedCommitMessageAiTool(settings.commitMessageAiTool)
         commitMessageUi.startLoading()
-        GenerateCommitMessageTask(project, workflowUi, commitMessageUi, includedChanges, includedUnversionedFiles).queue()
+        GenerateCommitMessageTask(
+            project,
+            workflowUi,
+            commitMessageUi,
+            includedChanges,
+            includedUnversionedFiles,
+            commitMessageAiTool
+        ).queue()
     }
 
     private fun confirmReplaceCommitMessage(project: Project): Boolean {
@@ -80,16 +89,17 @@ class GenerateCommitMessageAction : AnAction(AllIcons.Debugger.Console) {
         private val workflowUi: CommitWorkflowUi,
         private val commitMessageUi: CommitMessageUi,
         private val includedChanges: List<Change>,
-        private val includedUnversionedFiles: List<FilePath>
-    ) : Task.Backgroundable(project, "Generating OpenCode Commit Message", true) {
+        private val includedUnversionedFiles: List<FilePath>,
+        private val commitMessageAiTool: String
+    ) : Task.Backgroundable(project, commitMessageTaskTitle(commitMessageAiTool), true) {
         override fun run(indicator: ProgressIndicator) {
             try {
                 indicator.text = "Collecting selected changes"
                 val changeSummary = CommitChangeSummary(project, includedChanges, includedUnversionedFiles).build()
                 indicator.checkCanceled()
 
-                indicator.text = "Running opencode"
-                val generatedMessage = OpenCodeCommitMessageGenerator(project, changeSummary).generate(indicator)
+                indicator.text = "Running ${commitMessageCommandName(commitMessageAiTool)}"
+                val generatedMessage = commitMessageGenerator(project, changeSummary, commitMessageAiTool).generate(indicator)
                 indicator.checkCanceled()
 
                 invokeOnEdt {
@@ -124,6 +134,10 @@ class GenerateCommitMessageAction : AnAction(AllIcons.Debugger.Console) {
         }
     }
 
+    private interface CommitMessageGenerator {
+        fun generate(indicator: ProgressIndicator): String
+    }
+
     private class CommitChangeSummary(
         private val project: Project,
         private val includedChanges: List<Change>,
@@ -152,8 +166,8 @@ class GenerateCommitMessageAction : AnAction(AllIcons.Debugger.Console) {
     private class OpenCodeCommitMessageGenerator(
         private val project: Project,
         private val changeSummary: String
-    ) {
-        fun generate(indicator: ProgressIndicator): String {
+    ) : CommitMessageGenerator {
+        override fun generate(indicator: ProgressIndicator): String {
             val basePath = project.basePath
                 ?: throw CommitMessageGenerationException("项目没有可用的工作目录。")
             val settings = AiTerminalToolsSettings.getInstance().getState()
@@ -202,46 +216,6 @@ class GenerateCommitMessageAction : AnAction(AllIcons.Debugger.Console) {
             }
         }
 
-        private fun buildPrompt(summary: String): String {
-            return """
-                请根据 Commit 面板已勾选文件生成提交文案。
-
-                你可以在当前项目目录中查看变更，但必须遵守：
-                - 只分析“已勾选文件”清单中的文件。
-                - tracked 文件如需详情，只执行 git diff --no-color --no-ext-diff -- <已勾选路径>。
-                - 新增未跟踪文件如需详情，只读取清单中的文件。
-                - 不要修改任何文件，不要执行与生成提交文案无关的命令。
-
-                - 只输出提交文案，不要解释，不要分析过程，不要 Markdown 代码块。
-                - 使用中文。
-                - 使用 "- " 分条。
-                - 精简但完整，覆盖关键改动。
-                - 不要编造变更中不存在的内容。
-
-                变更内容：
-                $summary
-            """.trimIndent()
-        }
-
-        private fun cleanupOutput(output: String): String {
-            val lines = output
-                .replace(ANSI_PATTERN, "")
-                .lineSequence()
-                .map { it.trimEnd() }
-                .filterNot { it.trim().equals("```", ignoreCase = true) }
-                .filterNot { it.trimStart().startsWith("> ") }
-                .toList()
-            val trailingBulletLines = lines
-                .asReversed()
-                .dropWhile { it.isBlank() }
-                .takeWhile { it.isBlank() || it.trimStart().startsWith("- ") }
-                .asReversed()
-                .filter { it.trimStart().startsWith("- ") }
-            return (trailingBulletLines.ifEmpty { lines })
-                .joinToString("\n")
-                .trim()
-        }
-
         private fun deleteSessionQuietly(sessionTitle: String, basePath: Path) {
             try {
                 val listResult = runProcess(
@@ -268,6 +242,48 @@ class GenerateCommitMessageAction : AnAction(AllIcons.Debugger.Console) {
         }
     }
 
+    private class ClaudeCodeCommitMessageGenerator(
+        private val project: Project,
+        private val changeSummary: String
+    ) : CommitMessageGenerator {
+        override fun generate(indicator: ProgressIndicator): String {
+            val basePath = project.basePath
+                ?: throw CommitMessageGenerationException("项目没有可用的工作目录。")
+            val settings = AiTerminalToolsSettings.getInstance().getState()
+            val prompt = buildPrompt(changeSummary)
+            val basePathPath = Path.of(basePath).toAbsolutePath().normalize()
+            val command = mutableListOf(
+                claudeCommand(),
+                "-p",
+                prompt,
+                "--output-format",
+                "text",
+                "--no-session-persistence"
+            )
+            val model = settings.claudeCommitMessageModel.trim()
+            if (model.isNotEmpty()) {
+                command += listOf("--model", model)
+            }
+
+            val result = runProcess(
+                command,
+                basePathPath,
+                CLAUDE_TIMEOUT_SECONDS,
+                indicator,
+                "claude 生成提交信息超时"
+            )
+            if (result.exitCode != 0) {
+                throw CommitMessageGenerationException("claude 执行失败：${result.output.take(ERROR_OUTPUT_LIMIT)}")
+            }
+
+            val message = cleanupOutput(result.output)
+            if (message.isBlank()) {
+                throw CommitMessageGenerationException("claude 没有返回可用的提交信息")
+            }
+            return message
+        }
+    }
+
     private data class IncludedFile(
         val gitRoot: Path,
         val absolutePath: Path,
@@ -286,9 +302,91 @@ class GenerateCommitMessageAction : AnAction(AllIcons.Debugger.Console) {
         private const val MAX_INPUT_CHARS = 4000
         private const val ERROR_OUTPUT_LIMIT = 600
         private const val OPENCODE_TIMEOUT_SECONDS = 120L
+        private const val CLAUDE_TIMEOUT_SECONDS = 120L
         private const val OPENCODE_SESSION_CLEANUP_TIMEOUT_SECONDS = 15L
         private const val PROCESS_POLL_INTERVAL_MS = 200L
+        private const val COMMIT_MESSAGE_AI_TOOL_OPENCODE = "opencode"
+        private const val COMMIT_MESSAGE_AI_TOOL_CLAUDE = "claude"
         private val ANSI_PATTERN = Regex("\\u001B\\[[;?0-9]*[ -/]*[@-~]")
+
+        private fun normalizedCommitMessageAiTool(aiTool: String): String {
+            return if (aiTool == COMMIT_MESSAGE_AI_TOOL_CLAUDE) {
+                COMMIT_MESSAGE_AI_TOOL_CLAUDE
+            } else {
+                COMMIT_MESSAGE_AI_TOOL_OPENCODE
+            }
+        }
+
+        private fun commitMessageTaskTitle(aiTool: String): String {
+            return "Generating ${commitMessageToolDisplayName(aiTool)} Commit Message"
+        }
+
+        private fun commitMessageCommandName(aiTool: String): String {
+            return if (aiTool == COMMIT_MESSAGE_AI_TOOL_CLAUDE) "claude" else "opencode"
+        }
+
+        private fun commitMessageToolDisplayName(aiTool: String): String {
+            return if (aiTool == COMMIT_MESSAGE_AI_TOOL_CLAUDE) "Claude Code" else "OpenCode"
+        }
+
+        private fun commitMessageGenerator(
+            project: Project,
+            changeSummary: String,
+            aiTool: String
+        ): CommitMessageGenerator {
+            return if (aiTool == COMMIT_MESSAGE_AI_TOOL_CLAUDE) {
+                ClaudeCodeCommitMessageGenerator(project, changeSummary)
+            } else {
+                OpenCodeCommitMessageGenerator(project, changeSummary)
+            }
+        }
+
+        private fun buildPrompt(summary: String): String {
+            val settings = AiTerminalToolsSettings.getInstance().getState()
+            val basePrompt = AiTerminalToolsSettings.StateData.DEFAULT_COMMIT_MESSAGE_BASE_PROMPT
+            val additionalPrompt = settings.resolvedCommitMessageAdditionalPrompt()
+            return """
+                请根据 Commit 面板已勾选文件生成提交文案。
+
+                你可以在当前项目目录中查看变更，但必须遵守：
+                - 只分析“已勾选文件”清单中的文件。
+                - tracked 文件如需详情，只执行 git diff --no-color --no-ext-diff -- <已勾选路径>。
+                - 新增未跟踪文件如需详情，只读取清单中的文件。
+                - 不要修改任何文件，不要执行与生成提交文案无关的命令。
+
+                - 只输出提交文案，不要解释，不要分析过程，不要 Markdown 代码块。
+                - 使用 "- " 分条。
+                - 不要编造变更中不存在的内容。
+
+                基础要求：
+                $basePrompt
+
+                附加要求：
+                $additionalPrompt
+
+                变更内容：
+                $summary
+            """.trimIndent()
+        }
+
+        private fun cleanupOutput(output: String): String {
+            val lines = output
+                .replace(ANSI_PATTERN, "")
+                .lineSequence()
+                .map { it.trimEnd() }
+                .filterNot { it.trim().equals("```", ignoreCase = true) }
+                .filterNot { it.trimStart().startsWith("> ") }
+                .toList()
+            val trailingBulletLines = lines
+                .asReversed()
+                .dropWhile { it.isBlank() }
+                .takeWhile { it.isBlank() || it.trimStart().startsWith("- ") }
+                .asReversed()
+                .filter { it.trimStart().startsWith("- ") }
+            return (trailingBulletLines.ifEmpty { lines })
+                .joinToString("\n")
+                .trim()
+        }
 
         private fun Change.toIncludedFile(project: Project): IncludedFile? {
             val filePath = afterRevision?.file ?: beforeRevision?.file ?: return null
@@ -476,7 +574,7 @@ class GenerateCommitMessageAction : AnAction(AllIcons.Debugger.Console) {
                     "$COMMIT_MESSAGE_AGENT": {
                       "description": "Commit message generator",
                       "mode": "primary",
-                      "prompt": "生成简洁的中文提交信息，按条目输出，只写变更结果，不写项目旧名称、类名、文件名和技术细节。每条尽量短，避免出现反引号、Markdown 代码块、英文长句和具体实现描述，只输出普通文本条目。",
+                      "prompt": ${jsonString(commitMessageAgentPrompt())},
                       "tools": {
                         "invalid": false,
                         "skill": false,
@@ -498,8 +596,53 @@ class GenerateCommitMessageAction : AnAction(AllIcons.Debugger.Console) {
             """.trimIndent()
         }
 
+        private fun commitMessageAgentPrompt(): String {
+            val basePrompt = AiTerminalToolsSettings.StateData.DEFAULT_COMMIT_MESSAGE_BASE_PROMPT
+            val additionalPrompt = AiTerminalToolsSettings.getInstance()
+                .getState()
+                .resolvedCommitMessageAdditionalPrompt()
+            return "$basePrompt\n$additionalPrompt"
+        }
+
+        private fun jsonString(value: String): String {
+            return buildString {
+                append('"')
+                value.forEach { char ->
+                    when (char) {
+                        '"' -> append("\\\"")
+                        '\\' -> append("\\\\")
+                        '\b' -> append("\\b")
+                        '\u000C' -> append("\\f")
+                        '\n' -> append("\\n")
+                        '\r' -> append("\\r")
+                        '\t' -> append("\\t")
+                        else -> append(char)
+                    }
+                }
+                append('"')
+            }
+        }
+
         private fun opencodeCommand(): String {
             return if (SystemInfo.isWindows) "opencode.cmd" else "opencode"
+        }
+
+        private fun claudeCommand(): String {
+            if (!SystemInfo.isWindows) return "claude"
+            val pathValue = System.getenv("PATH").orEmpty()
+            val commandNames = listOf("claude.cmd", "claude.exe", "claude.bat", "claude")
+            pathValue.split(File.pathSeparatorChar)
+                .map { it.trim().trim('"') }
+                .filter { it.isNotEmpty() }
+                .forEach { pathEntry ->
+                    commandNames.forEach { commandName ->
+                        val commandPath = Path.of(pathEntry, commandName)
+                        if (Files.isRegularFile(commandPath)) {
+                            return commandPath.toAbsolutePath().normalize().toString()
+                        }
+                    }
+                }
+            return "claude"
         }
     }
 }

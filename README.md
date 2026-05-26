@@ -25,7 +25,7 @@ C:\Projects\demo\src\main\java\com\example\ExampleController.java:22
 路径解析规则：
 
 - 优先以路径后缀匹配项目文件。
-- 支持扩展名：`java`, `kt`, `kts`, `js`, `jsx`, `ts`, `tsx`, `vue`, `xml`, `html`, `css`, `scss`, `yml`, `yaml`, `properties`, `sql`, `md`。
+- 支持扩展名：`java`, `kt`, `kts`, `gradle`, `js`, `ts`, `vue`, `html`, `css`, `scss`, `sass`, `less`, `py`, `c`, `cpp`, `cc`, `ps1`, `cmd`, `json`, `toml`, `yaml`, `yml`, `conf`, `env`, `properties`, `xml`, `md`, `sql`。
 - `@路径` 引用优先级更高，用于匹配 AI 终端中的路径引用。
 
 当多个文件匹配同一引用时，插件会根据路径特征打分排序；若仍有多个候选，弹出选择对话框供用户手动选取。
@@ -121,7 +121,7 @@ src/main/java/A.java:10-20
 
 ### 📝 生成提交信息
 
-Commit 面板工具栏会显示“生成提交信息”动作，点击后使用 OpenCode 根据当前 Commit 面板中已勾选的文件生成简要提交信息。提交信息模型可在下方「设置」部分中配置。
+Commit 面板工具栏会显示“生成提交信息”动作，点击后使用设置中选择的 OpenCode 或 Claude Code，根据当前 Commit 面板中已勾选的文件生成简要提交信息。提交信息 AI 工具和模型可在下方「设置」部分中配置。
 
 ## ⚙️ 设置
 
@@ -129,7 +129,10 @@ Commit 面板工具栏会显示“生成提交信息”动作，点击后使用 
 
 - 启用控制台错误发送图标：控制 Run/Debug Console 中异常首行的发送图标。
 - 启用拖拽文件/文件夹到 AI 终端：控制拖拽接管范围，默认开启。
-- 提交信息模型：配置 OpenCode 的 `provider/model` 格式模型，例如 `openai/gpt-4.1`。留空时使用 OpenCode 默认模型，可在 [`%USERPROFILE%\.config\opencode\opencode.json`](https://opencode.ai/docs/models/) 中配置。
+- 提交信息 AI 工具：选择生成提交信息时使用 OpenCode 还是 Claude Code，默认 OpenCode。
+- 提交信息模型：模型按 AI 工具分别保存。OpenCode 填写 `provider/model` 格式；Claude Code 填写 `claude-sonnet-4-6` 完整模型名。留空时分别使用当前工具的默认模型。
+- 提交信息附加提示词：填写后使用当前内容作为附加提示词。
+- 额外文件扩展名：默认扩展名之外需要识别的扩展名，使用英文分号 `;` 分隔。
 
 ## ⌨️ 快捷键
 
