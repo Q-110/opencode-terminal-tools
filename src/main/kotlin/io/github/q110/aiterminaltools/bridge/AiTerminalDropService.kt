@@ -87,6 +87,7 @@ class AiTerminalDropService(
                 }
 
                 override fun contentRemoved(event: ContentManagerEvent) {
+                    project.service<AiTerminalBridgeService>().unregisterAiTerminalContent(event.content)
                     disposeDropTarget(event.content)
                     refreshDropTarget()
                 }

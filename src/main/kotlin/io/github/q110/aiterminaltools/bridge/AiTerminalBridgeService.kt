@@ -78,13 +78,26 @@ class AiTerminalBridgeService(
     }
 
     fun isRecordedAiTerminalContent(content: Content): Boolean {
+        pruneInvalidAiTerminalRecords()
+
         val frontendHelper = frontendHelper
-        if (frontendHelper != null && aiFrontendTerminals.any { frontendHelper.isContentOf(it, content) }) {
+        if (frontendHelper != null && aiFrontendTerminals.any { isFrontendContentOf(frontendHelper, it, content) }) {
             return true
         }
 
         val widget = TerminalToolWindowManager.findWidgetByContent(content)
         return widget != null && widget in aiClassicTerminals
+    }
+
+    internal fun unregisterAiTerminalContent(content: Content) {
+        frontendHelper?.let { helper ->
+            aiFrontendTerminals.removeAll { isFrontendContentOf(helper, it, content) }
+        }
+
+        val widget = TerminalToolWindowManager.findWidgetByContent(content)
+        if (widget != null) {
+            aiClassicTerminals.remove(widget)
+        }
     }
 
     /** 创建新的 OpenCode terminal，并启动 opencode */
@@ -309,9 +322,36 @@ class AiTerminalBridgeService(
     }
 
     private fun isRecordedAiTerminal(terminal: TargetTerminal): Boolean {
+        pruneInvalidAiTerminalRecords()
+
         return when (terminal) {
             is TargetTerminal.Classic -> terminal.widget in aiClassicTerminals
             is TargetTerminal.Frontend -> terminal.tab in aiFrontendTerminals
+        }
+    }
+
+    private fun pruneInvalidAiTerminalRecords() {
+        val helper = frontendHelper
+        if (helper == null) {
+            aiFrontendTerminals.clear()
+        } else {
+            aiFrontendTerminals.removeAll { !helper.isTabExists(it) }
+        }
+
+        aiClassicTerminals.removeAll { widget ->
+            try {
+                widget.ttyConnector?.isConnected != true
+            } catch (_: Throwable) {
+                true
+            }
+        }
+    }
+
+    private fun isFrontendContentOf(helper: FrontendTerminalHelper, tab: Any, content: Content): Boolean {
+        return try {
+            helper.isContentOf(tab, content)
+        } catch (_: Throwable) {
+            false
         }
     }
 
