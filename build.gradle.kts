@@ -17,7 +17,7 @@ repositories {
     }
 }
 
-val platformVersion = providers.gradleProperty("platformVersion").getOrElse("2025.3")
+val platformVersion = providers.gradleProperty("platformVersion").getOrElse("2025.1")
 val platformType = providers.gradleProperty("platformType").getOrElse("IU")
 
 dependencies {
@@ -74,7 +74,7 @@ intellijPlatform {
         """.trimIndent()
 
         ideaVersion {
-            sinceBuild = "253"
+            sinceBuild = "251"
         }
     }
 }

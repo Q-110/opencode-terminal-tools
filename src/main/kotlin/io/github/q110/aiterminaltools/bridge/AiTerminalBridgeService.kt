@@ -41,6 +41,7 @@ class AiTerminalBridgeService(
     private val openCodeTerminalStartInProgress = AtomicBoolean(false)
     private val claudeCodeTerminalStartInProgress = AtomicBoolean(false)
     private val aiFrontendTerminals = Collections.newSetFromMap(IdentityHashMap<Any, Boolean>())
+    private val aiLegacyReworkedTerminals = Collections.newSetFromMap(IdentityHashMap<TerminalWidget, Boolean>())
     private val aiClassicTerminals = Collections.newSetFromMap(IdentityHashMap<TerminalWidget, Boolean>())
 
     /** 直接写入当前激活的 AI 终端输入区 */
@@ -86,7 +87,7 @@ class AiTerminalBridgeService(
         }
 
         val widget = TerminalToolWindowManager.findWidgetByContent(content)
-        return widget != null && widget in aiClassicTerminals
+        return widget != null && (widget in aiLegacyReworkedTerminals || widget in aiClassicTerminals)
     }
 
     internal fun unregisterAiTerminalContent(content: Content) {
@@ -96,6 +97,7 @@ class AiTerminalBridgeService(
 
         val widget = TerminalToolWindowManager.findWidgetByContent(content)
         if (widget != null) {
+            aiLegacyReworkedTerminals.remove(widget)
             aiClassicTerminals.remove(widget)
         }
     }
@@ -156,10 +158,14 @@ class AiTerminalBridgeService(
                     try {
                         val workingDirectory = terminalWorkingDirectory()
                         val result = startFrontendTerminal(tabName, workingDirectory, command, toolName)
-                            ?: startLegacyReworkedTerminal(tabName, workingDirectory, command, toolName)
-                            ?: run {
-                                notifyLegacyReworkedFallbackIfNeeded(toolName)
+                            ?: if (shouldSkipLegacyReworkedTerminal(command)) {
                                 startClassicTerminal(tabName, workingDirectory, command, toolName)
+                            } else {
+                                startLegacyReworkedTerminal(tabName, workingDirectory, command, toolName)
+                                    ?: run {
+                                        notifyLegacyReworkedFallbackIfNeeded(toolName)
+                                        startClassicTerminal(tabName, workingDirectory, command, toolName)
+                                    }
                             }
                         if (result is BridgeResult.Error) {
                             notify(project, result.message, NotificationType.WARNING)
@@ -170,6 +176,10 @@ class AiTerminalBridgeService(
                 }
             }, true, true)
         }
+    }
+
+    private fun shouldSkipLegacyReworkedTerminal(command: String): Boolean {
+        return command == OPEN_CODE_COMMAND && ideBaselineVersion() in 251..252
     }
 
     private fun startFrontendTerminal(tabName: String, workingDirectory: String, command: String, toolName: String): BridgeResult? {
@@ -195,13 +205,20 @@ class AiTerminalBridgeService(
             val widget = legacyReworkedTerminalHelper.createAiTerminal(tabName, workingDirectory)
                 ?: return null
             legacyReworkedTerminalHelper.runCommand(
-                widget,
-                command,
-                "已启动 $toolName 终端",
-                "运行 $command 失败"
-            ) {
-                registerAiTerminal(TargetTerminal.Classic(widget))
-            }
+                widget = widget,
+                command = command,
+                successMessage = "已启动 $toolName 终端",
+                failurePrefix = "运行 $command 失败",
+                onCommandSent = {
+                    registerAiTerminal(TargetTerminal.LegacyReworked(widget))
+                },
+                onCommandFailed = {
+                    val result = startClassicTerminal(tabName, workingDirectory, command, toolName)
+                    if (result is BridgeResult.Error) {
+                        notify(project, result.message, NotificationType.WARNING)
+                    }
+                }
+            )
         } catch (exception: Throwable) {
             notify(project, "Reworked Terminal 不可用，改用 Classic Terminal：${exception.message}", NotificationType.WARNING)
             null
@@ -305,6 +322,11 @@ class AiTerminalBridgeService(
     private fun injectDirectInput(terminal: TargetTerminal, payload: String, settleAtLineEnd: Boolean): BridgeResult {
         return when (terminal) {
             is TargetTerminal.Classic -> injectClassicDirectInput(terminal.widget, payload, settleAtLineEnd)
+            is TargetTerminal.LegacyReworked -> legacyReworkedTerminalHelper.injectDirectInput(
+                terminal.widget,
+                payload,
+                settleAtLineEnd
+            )
             is TargetTerminal.Frontend -> {
                 val helper = frontendHelper
                     ?: return BridgeResult.Error("新版终端 API 在当前 IDE 中不可用。")
@@ -316,6 +338,7 @@ class AiTerminalBridgeService(
     private fun registerAiTerminal(terminal: TargetTerminal) {
         when (terminal) {
             is TargetTerminal.Classic -> aiClassicTerminals += terminal.widget
+            is TargetTerminal.LegacyReworked -> aiLegacyReworkedTerminals += terminal.widget
             is TargetTerminal.Frontend -> aiFrontendTerminals += terminal.tab
         }
         project.service<AiTerminalDropService>().refreshDropTarget()
@@ -326,6 +349,7 @@ class AiTerminalBridgeService(
 
         return when (terminal) {
             is TargetTerminal.Classic -> terminal.widget in aiClassicTerminals
+            is TargetTerminal.LegacyReworked -> terminal.widget in aiLegacyReworkedTerminals
             is TargetTerminal.Frontend -> terminal.tab in aiFrontendTerminals
         }
     }
@@ -336,6 +360,10 @@ class AiTerminalBridgeService(
             aiFrontendTerminals.clear()
         } else {
             aiFrontendTerminals.removeAll { !helper.isTabExists(it) }
+        }
+
+        aiLegacyReworkedTerminals.removeAll { widget ->
+            !legacyReworkedTerminalHelper.isWidgetContentExists(widget)
         }
 
         aiClassicTerminals.removeAll { widget ->
@@ -409,13 +437,18 @@ class AiTerminalBridgeService(
     /** 优先前端终端 → 经典终端 */
     private fun selectedTerminal(): TargetTerminal? {
         return frontendHelper?.selectedTerminal()?.let { TargetTerminal.Frontend(it) }
-            ?: selectedClassicTerminal()?.let { TargetTerminal.Classic(it) }
+            ?: selectedClassicOrLegacyTerminal()
     }
 
-    private fun selectedClassicTerminal(): TerminalWidget? {
+    private fun selectedClassicOrLegacyTerminal(): TargetTerminal? {
         val toolWindow = TerminalToolWindowManager.getInstance(project).toolWindow ?: return null
         val selectedContent = toolWindow.contentManager.selectedContent ?: return null
-        return TerminalToolWindowManager.findWidgetByContent(selectedContent)
+        val widget = TerminalToolWindowManager.findWidgetByContent(selectedContent) ?: return null
+        return if (legacyReworkedTerminalHelper.isReworkedWidget(widget)) {
+            TargetTerminal.LegacyReworked(widget)
+        } else {
+            TargetTerminal.Classic(widget)
+        }
     }
 
     /** 检查终端是否可用：经典终端检查 TTY 连接，前端终端检查 tab 仍存在 */
@@ -428,6 +461,7 @@ class AiTerminalBridgeService(
                     false
                 }
             }
+            is TargetTerminal.LegacyReworked -> legacyReworkedTerminalHelper.isWidgetContentExists(terminal.widget)
             is TargetTerminal.Frontend -> frontendHelper?.isTabExists(terminal.tab) == true
         }
     }
@@ -466,6 +500,7 @@ class AiTerminalBridgeService(
     /** 终端类型抽象：经典 / 前端（tab 在运行时为 TerminalToolWindowTab 类型） */
     private sealed class TargetTerminal {
         data class Classic(val widget: TerminalWidget) : TargetTerminal()
+        data class LegacyReworked(val widget: TerminalWidget) : TargetTerminal()
         data class Frontend(val tab: Any) : TargetTerminal()
     }
 }

@@ -3,6 +3,8 @@ package io.github.q110.aiterminaltools.filter
 
 import com.intellij.execution.filters.Filter
 import com.intellij.openapi.application.ReadAction
+import com.intellij.openapi.editor.colors.EditorColorsManager
+import com.intellij.openapi.editor.colors.EditorColorsScheme
 import com.intellij.openapi.editor.markup.TextAttributes
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.vfs.VirtualFile
@@ -18,7 +20,6 @@ internal class AiTerminalToolsFilter(
 ) : Filter {
     /** LRU 缓存：文件名 → 最近出现的路径 */
     private val recentFilePathsByName = LinkedHashMap<String, String>()
-    private val copyTextAttributes = TextAttributes()
     private var cachedFileExtensions: Set<String> = emptySet()
     private var cachedFileRefPattern: Regex =
         FilterPatterns.fileRefPattern(AiTerminalToolsSettings.StateData.DEFAULT_FILE_EXTENSIONS)
@@ -39,6 +40,7 @@ internal class AiTerminalToolsFilter(
         val baseOffset = entireLength - line.length
         val items = mutableListOf<Filter.ResultItem>()
         val fileLinkRanges = mutableListOf<IntRange>()
+        val copyTextAttributes = normalTextAttributes()
 
         // 阶段二：解析 @路径引用（高优先级，精确匹配）
         if (settings.fileLinksEnabled) {
@@ -107,12 +109,13 @@ internal class AiTerminalToolsFilter(
         }
 
         // 阶段四：解析点击复制模式（跳过已被文件链接占用的区间）
-        if (settings.copyLinksEnabled) {
+        if (settings.copyLinksEnabled && !isClassicTerminalFilterCall()) {
             for (match in findCopyMatches(line, fileLinkRanges)) {
                 items += Filter.ResultItem(
                     baseOffset + match.range.first,
                     baseOffset + match.range.last + 1,
                     CopyTextHyperlinkInfo(project, match.text),
+                    copyTextAttributes,
                     copyTextAttributes
                 )
             }
@@ -129,6 +132,25 @@ internal class AiTerminalToolsFilter(
         }
 
         return cachedFileRefPattern
+    }
+
+    private fun normalTextAttributes(): TextAttributes {
+        val scheme: EditorColorsScheme = EditorColorsManager.getInstance().globalScheme
+        return TextAttributes(
+            scheme.defaultForeground,
+            null,
+            null,
+            null,
+            0
+        )
+    }
+
+    private fun isClassicTerminalFilterCall(): Boolean {
+        return Thread.currentThread().stackTrace.any { frame ->
+            frame.className.startsWith("com.jediterm.") ||
+                frame.className == "com.intellij.terminal.JBTerminalWidget" ||
+                frame.className == "org.jetbrains.plugins.terminal.ShellTerminalWidget"
+        }
     }
 
     /** 在 ReadAction 中按路径查找 VirtualFile */

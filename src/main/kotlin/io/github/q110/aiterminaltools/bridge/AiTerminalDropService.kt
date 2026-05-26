@@ -16,12 +16,21 @@ import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.openapi.wm.ToolWindow
 import com.intellij.openapi.wm.ToolWindowManager
 import com.intellij.openapi.wm.ex.ToolWindowManagerListener
+import com.intellij.terminal.JBTerminalWidget
 import com.intellij.ui.content.Content
 import com.intellij.ui.content.ContentManager
 import com.intellij.ui.content.ContentManagerEvent
 import com.intellij.ui.content.ContentManagerListener
+import com.intellij.ui.awt.RelativePoint
+import io.github.q110.aiterminaltools.copy.CopyTextHyperlinkInfo
+import io.github.q110.aiterminaltools.filter.FilterPatterns
+import io.github.q110.aiterminaltools.filter.isCopyNoise
 import io.github.q110.aiterminaltools.settings.AiTerminalToolsSettings
 import org.jetbrains.plugins.terminal.TerminalToolWindowManager
+import java.awt.Component
+import java.awt.event.MouseAdapter
+import java.awt.event.MouseEvent
+import javax.swing.JComponent
 
 @Service(Service.Level.PROJECT)
 class AiTerminalDropService(
@@ -29,6 +38,7 @@ class AiTerminalDropService(
 ) : Disposable {
     private val contentManagerListeners = mutableMapOf<ContentManager, ContentManagerListener>()
     private val dropTargetDisposables = mutableMapOf<Content, Disposable>()
+    private val classicCopyDisposables = mutableMapOf<Content, Disposable>()
     private var initialized = false
 
     fun initialize() {
@@ -66,8 +76,16 @@ class AiTerminalDropService(
             .toList()
             .forEach { disposeDropTarget(it) }
 
+        classicCopyDisposables.keys
+            .filter { it !== targetContent || !copyLinksEnabled() }
+            .toList()
+            .forEach { disposeClassicCopyTarget(it) }
+
         if (dropEnabled) {
             installForContent(targetContent!!)
+        }
+        if (targetContent != null && copyLinksEnabled()) {
+            installClassicCopyForContent(targetContent)
         }
     }
 
@@ -89,6 +107,7 @@ class AiTerminalDropService(
                 override fun contentRemoved(event: ContentManagerEvent) {
                     project.service<AiTerminalBridgeService>().unregisterAiTerminalContent(event.content)
                     disposeDropTarget(event.content)
+                    disposeClassicCopyTarget(event.content)
                     refreshDropTarget()
                 }
 
@@ -119,6 +138,14 @@ class AiTerminalDropService(
         }
 
         val disposable = Disposer.newDisposable("AI terminal drop target")
+        dropTargetComponents(content, component).forEach { targetComponent ->
+            installDropTarget(targetComponent, content, disposable)
+        }
+
+        dropTargetDisposables[content] = disposable
+    }
+
+    private fun installDropTarget(component: JComponent, content: Content, disposable: Disposable) {
         DnDSupport.createBuilder(component)
             .disableAsSource()
             .enableAsNativeTarget()
@@ -142,8 +169,23 @@ class AiTerminalDropService(
             }
             .setDisposableParent(disposable)
             .install()
+    }
 
-        dropTargetDisposables[content] = disposable
+    private fun dropTargetComponents(content: Content, component: JComponent): List<JComponent> {
+        val components = mutableListOf<JComponent>()
+        components += component
+        val widget = TerminalToolWindowManager.findWidgetByContent(content)
+        if (widget != null) {
+            try {
+                components += widget.component
+            } catch (_: Throwable) {
+            }
+            try {
+                components += widget.preferredFocusableComponent
+            } catch (_: Throwable) {
+            }
+        }
+        return components.filter { it.isShowing || it === component }.distinct()
     }
 
     private fun canHandleDrop(files: List<VirtualFile>, content: Content): Boolean {
@@ -156,12 +198,109 @@ class AiTerminalDropService(
         return AiTerminalToolsSettings.getInstance().getState().isDragToAiTerminalEnabled()
     }
 
+    private fun copyLinksEnabled(): Boolean {
+        return AiTerminalToolsSettings.getInstance().getState().copyLinksEnabled
+    }
+
     private fun isRecordedAiTerminalContent(content: Content): Boolean {
         return project.service<AiTerminalBridgeService>().isRecordedAiTerminalContent(content)
     }
 
     private fun disposeDropTarget(content: Content) {
         val disposable = dropTargetDisposables.remove(content) ?: return
+        Disposer.dispose(disposable)
+    }
+
+    private fun installClassicCopyForContent(content: Content) {
+        if (classicCopyDisposables.containsKey(content)) {
+            return
+        }
+        val widget = TerminalToolWindowManager.findWidgetByContent(content) ?: return
+        val jediTermWidget = try {
+            JBTerminalWidget.asJediTermWidget(widget)
+        } catch (_: Throwable) {
+            null
+        } ?: return
+        if (!isClassicWidget(jediTermWidget)) {
+            return
+        }
+
+        val panel = try {
+            jediTermWidget.terminalPanel
+        } catch (_: Throwable) {
+            return
+        }
+
+        val listener = object : MouseAdapter() {
+            override fun mouseClicked(event: MouseEvent) {
+                if (event.button != MouseEvent.BUTTON1 || event.clickCount != 1) {
+                    return
+                }
+                val match = copyMatchAt(panel, event) ?: return
+                CopyTextHyperlinkInfo(project, match).navigate(project, RelativePoint(event))
+            }
+        }
+
+        val disposable = Disposer.newDisposable("AI terminal classic copy target")
+        panel.addMouseListener(listener)
+        Disposer.register(disposable, Disposable {
+            panel.removeMouseListener(listener)
+        })
+        classicCopyDisposables[content] = disposable
+    }
+
+    private fun isClassicWidget(widget: JBTerminalWidget): Boolean {
+        val className = widget.javaClass.name
+        return className.contains("ShellTerminalWidget") || className.contains("JediTerm")
+    }
+
+    private fun copyMatchAt(panel: Component, event: MouseEvent): String? {
+        val cell = try {
+            val method = panel.javaClass.getDeclaredMethod("panelPointToCell", java.awt.Point::class.java)
+            method.isAccessible = true
+            method.invoke(panel, event.point)
+        } catch (_: Throwable) {
+            null
+        } ?: return null
+
+        val lineNumber = cell.javaClass.getMethod("getLine").invoke(cell) as? Int ?: return null
+        val column = cell.javaClass.getMethod("getColumn").invoke(cell) as? Int ?: return null
+        val line = terminalLineText(panel, lineNumber)
+            ?: terminalLineText(panel, lineNumber - 1)
+            ?: return null
+        return findCopyMatchAt(line, column) ?: findCopyMatchAt(line, column - 1)
+    }
+
+    private fun terminalLineText(panel: Component, lineNumber: Int): String? {
+        if (lineNumber < 0) {
+            return null
+        }
+        return try {
+            val buffer = panel.javaClass.getMethod("getTerminalTextBuffer").invoke(panel)
+            val line = buffer.javaClass.getMethod("getLine", Int::class.javaPrimitiveType).invoke(buffer, lineNumber)
+            line.javaClass.getMethod("getText").invoke(line) as? String
+        } catch (_: Throwable) {
+            null
+        }
+    }
+
+    private fun findCopyMatchAt(line: String, column: Int): String? {
+        if (column < 0) {
+            return null
+        }
+        for (pattern in FilterPatterns.copyPatterns) {
+            for (match in pattern.findAll(line)) {
+                val text = match.value.trim()
+                if (column in match.range && text.isNotEmpty() && !isCopyNoise(text)) {
+                    return text
+                }
+            }
+        }
+        return null
+    }
+
+    private fun disposeClassicCopyTarget(content: Content) {
+        val disposable = classicCopyDisposables.remove(content) ?: return
         Disposer.dispose(disposable)
     }
 
@@ -187,6 +326,7 @@ class AiTerminalDropService(
 
     override fun dispose() {
         dropTargetDisposables.keys.toList().forEach { disposeDropTarget(it) }
+        classicCopyDisposables.keys.toList().forEach { disposeClassicCopyTarget(it) }
         contentManagerListeners.forEach { (contentManager, listener) ->
             contentManager.removeContentManagerListener(listener)
         }

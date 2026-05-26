@@ -4,7 +4,6 @@ import com.intellij.notification.NotificationType
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.wm.IdeFocusManager
 import com.intellij.openapi.wm.ToolWindowManager
-import com.intellij.terminal.frontend.toolwindow.TerminalToolWindowTabsManager
 import com.intellij.ui.content.Content
 import io.github.q110.aiterminaltools.bridge.AiTerminalBridgeService.BridgeResult
 import javax.swing.JComponent
@@ -13,7 +12,12 @@ import javax.swing.Timer
 class FrontendTerminalHelper(
     private val project: Project
 ) {
-    private val tabsManager = TerminalToolWindowTabsManager.getInstance(project)
+    private val tabsManagerClass = Class.forName(FRONTEND_TABS_MANAGER_CLASS)
+    private val tabBuilderClass = Class.forName(FRONTEND_TAB_BUILDER_CLASS)
+    private val tabClass = Class.forName(FRONTEND_TAB_CLASS)
+    private val tabsManager = Class.forName(FRONTEND_TABS_MANAGER_CLASS)
+        .getMethod("getInstance", Project::class.java)
+        .invoke(null, project)
 
     fun selectedTerminal(): Any? {
         val selectedContent = ToolWindowManager.getInstance(project)
@@ -29,12 +33,12 @@ class FrontendTerminalHelper(
     }
 
     fun createAiTerminal(tabName: String, workingDirectory: String): Any {
-        return tabsManager.createTabBuilder()
-            .workingDirectory(workingDirectory)
-            .tabName(tabName)
-            .requestFocus(true)
-            .deferSessionStartUntilUiShown(false)
-            .createTab()
+        var builder = tabsManagerMethod("createTabBuilder").invoke(tabsManager)
+        builder = tabBuilderMethod("workingDirectory", String::class.java).invoke(builder, workingDirectory)
+        builder = tabBuilderMethod("tabName", String::class.java).invoke(builder, tabName)
+        builder = tabBuilderMethod("requestFocus", Boolean::class.javaPrimitiveType).invoke(builder, true)
+        builder = tabBuilderMethod("deferSessionStartUntilUiShown", Boolean::class.javaPrimitiveType).invoke(builder, false)
+        return tabBuilderMethod("createTab").invoke(builder)
     }
 
     fun runCommand(
@@ -122,7 +126,8 @@ class FrontendTerminalHelper(
     }
 
     private fun tabs(): List<Any> {
-        return tabsManager.tabs
+        val tabs = tabsManagerMethod("getTabs").invoke(tabsManager) as? List<*>
+        return tabs?.filterNotNull().orEmpty()
     }
 
     private fun sendDirectInput(view: Any, focusComponent: JComponent, payload: String, settleAtLineEnd: Boolean) {
@@ -190,15 +195,27 @@ class FrontendTerminalHelper(
     }
 
     private fun contentOf(tab: Any): Content? {
-        return tab.javaClass.getMethod("getContent").invoke(tab) as? Content
+        return tabMethod("getContent").invoke(tab) as? Content
     }
 
     private fun viewOf(tab: Any): Any? {
-        return tab.javaClass.getMethod("getView").invoke(tab)
+        return tabMethod("getView").invoke(tab)
     }
 
     private fun preferredFocusableComponent(view: Any): JComponent? {
         return view.javaClass.getMethod("getPreferredFocusableComponent").invoke(view) as? JComponent
+    }
+
+    private fun tabsManagerMethod(name: String, vararg parameterTypes: Class<*>?): java.lang.reflect.Method {
+        return tabsManagerClass.getMethod(name, *parameterTypes)
+    }
+
+    private fun tabBuilderMethod(name: String, vararg parameterTypes: Class<*>?): java.lang.reflect.Method {
+        return tabBuilderClass.getMethod(name, *parameterTypes)
+    }
+
+    private fun tabMethod(name: String, vararg parameterTypes: Class<*>?): java.lang.reflect.Method {
+        return tabClass.getMethod(name, *parameterTypes)
     }
 
     private fun findField(type: Class<*>, name: String): java.lang.reflect.Field? {
@@ -214,6 +231,12 @@ class FrontendTerminalHelper(
     }
 
     companion object {
+        private const val FRONTEND_TABS_MANAGER_CLASS =
+            "com.intellij.terminal.frontend.toolwindow.TerminalToolWindowTabsManager"
+        private const val FRONTEND_TAB_BUILDER_CLASS =
+            "com.intellij.terminal.frontend.toolwindow.TerminalToolWindowTabBuilder"
+        private const val FRONTEND_TAB_CLASS =
+            "com.intellij.terminal.frontend.toolwindow.TerminalToolWindowTab"
         private const val TERMINAL_TOOL_WINDOW_ID = "Terminal"
         private const val LINE_END_SPACE = "\u0005 "
     }

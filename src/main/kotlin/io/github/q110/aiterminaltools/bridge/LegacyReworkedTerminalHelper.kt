@@ -1,10 +1,16 @@
 package io.github.q110.aiterminaltools.bridge
 
 import com.intellij.notification.NotificationType
+import com.intellij.openapi.Disposable
+import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.util.Disposer
 import com.intellij.openapi.wm.ToolWindowManager
 import com.intellij.terminal.ui.TerminalWidget
 import org.jetbrains.plugins.terminal.TerminalToolWindowManager
+import java.util.concurrent.CompletableFuture
+import java.util.concurrent.atomic.AtomicReference
+import javax.swing.Timer
 
 class LegacyReworkedTerminalHelper(
     private val project: Project
@@ -30,7 +36,7 @@ class LegacyReworkedTerminalHelper(
             }
         }
 
-        return null
+        return tryCreate20251Session(manager, tabName, workingDirectory)
     }
 
     fun runCommand(
@@ -38,34 +44,64 @@ class LegacyReworkedTerminalHelper(
         command: String,
         successMessage: String,
         failurePrefix: String,
-        onCommandSent: () -> Unit = {}
+        onCommandSent: () -> Unit = {},
+        onCommandFailed: () -> Unit = {}
     ): AiTerminalBridgeService.BridgeResult {
         val toolWindow = ToolWindowManager.getInstance(project).getToolWindow(TERMINAL_TOOL_WINDOW_ID)
             ?: return AiTerminalBridgeService.BridgeResult.Error("Terminal tool window was not found.")
 
         toolWindow.activate(Runnable {
-            try {
-                widget.requestFocus()
-                widget.sendCommandToExecute(command)
-                onCommandSent()
-                AiTerminalBridgeService.notify(project, successMessage, NotificationType.INFORMATION)
-            } catch (exception: Throwable) {
-                try {
-                    val connector = widget.ttyConnector
-                    if (connector != null && connector.isConnected) {
-                        connector.write("$command\r")
-                        onCommandSent()
-                        AiTerminalBridgeService.notify(project, successMessage, NotificationType.INFORMATION)
-                    } else {
-                        AiTerminalBridgeService.notify(project, "$failurePrefix: terminal input is unavailable.", NotificationType.WARNING)
+            val future = terminalSizeInitializedFuture(widget)
+
+            if (future == null) {
+                sendCommand(widget, command, successMessage, failurePrefix, onCommandSent, onCommandFailed)
+            } else {
+                future.whenComplete { _: Any?, exception: Throwable? ->
+                    ApplicationManager.getApplication().invokeLater {
+                        if (exception != null) {
+                            AiTerminalBridgeService.notify(project, "$failurePrefix: ${exception.message}", NotificationType.WARNING)
+                            onCommandFailed()
+                        } else {
+                            sendCommand(widget, command, successMessage, failurePrefix, onCommandSent, onCommandFailed)
+                        }
                     }
-                } catch (writeException: Throwable) {
-                    AiTerminalBridgeService.notify(project, "$failurePrefix: ${writeException.message}", NotificationType.WARNING)
                 }
             }
         }, true, true)
 
         return AiTerminalBridgeService.BridgeResult.Scheduled
+    }
+
+    private fun terminalSizeInitializedFuture(widget: TerminalWidget): CompletableFuture<*>? {
+        return try {
+            widget.javaClass.getMethod("getTerminalSizeInitializedFuture").invoke(widget) as? CompletableFuture<*>
+        } catch (_: Throwable) {
+            null
+        }
+    }
+
+    fun injectDirectInput(widget: TerminalWidget, payload: String, settleAtLineEnd: Boolean): AiTerminalBridgeService.BridgeResult {
+        return try {
+            widget.requestFocus()
+            sendDirectInput(widget, payload)
+            if (settleAtLineEnd) {
+                scheduleLineEndSpace { sendDirectInput(widget, LINE_END_SPACE) }
+            }
+            AiTerminalBridgeService.BridgeResult.Success
+        } catch (exception: Throwable) {
+            AiTerminalBridgeService.BridgeResult.Error("发送 AI Terminal 输入失败：${exception.message}")
+        }
+    }
+
+    fun isReworkedWidget(widget: TerminalWidget): Boolean {
+        return widget.javaClass.name == REWORKED_WIDGET_CLASS
+    }
+
+    fun isWidgetContentExists(widget: TerminalWidget): Boolean {
+        val toolWindow = TerminalToolWindowManager.getInstance(project).toolWindow ?: return false
+        return toolWindow.contentManager.contents.any { content ->
+            TerminalToolWindowManager.findWidgetByContent(content) == widget
+        }
     }
 
     private fun tryCreateTab(
@@ -80,6 +116,42 @@ class LegacyReworkedTerminalHelper(
 
         return tryCreate2025xTab(manager, engine, state, contentManager)
             ?: tryCreate20252Tab(manager, engine, state)
+    }
+
+    private fun tryCreate20251Session(
+        manager: TerminalToolWindowManager,
+        tabName: String,
+        workingDirectory: String
+    ): TerminalWidget? {
+        val state = terminalTabState(tabName, workingDirectory) ?: return null
+        val createdWidget = AtomicReference<TerminalWidget?>()
+        val disposable: Disposable = Disposer.newDisposable("AI Terminal Reworked setup")
+        return try {
+            manager.addNewTerminalSetupHandler({ widget ->
+                if (!isClassicWidget(widget)) {
+                    createdWidget.set(widget)
+                }
+            }, disposable)
+            val method = manager.javaClass.methods.firstOrNull { method ->
+                method.name == "createNewSession" &&
+                    method.parameterTypes.size == 1 &&
+                    method.parameterTypes[0].name == "org.jetbrains.plugins.terminal.TerminalTabState"
+            } ?: return null
+            method.invoke(manager, state)
+            val widget = createdWidget.get() ?: return null
+            val toolWindow = manager.toolWindow ?: return null
+            toolWindow.contentManager.contents
+                .firstOrNull { TerminalToolWindowManager.findWidgetByContent(it) == widget }
+                ?.let { content ->
+                    content.displayName = tabName
+                    toolWindow.contentManager.setSelectedContent(content)
+                }
+            widget
+        } catch (_: Throwable) {
+            null
+        } finally {
+            Disposer.dispose(disposable)
+        }
     }
 
     private fun tryCreate2025xTab(
@@ -153,6 +225,81 @@ class LegacyReworkedTerminalHelper(
         }
     }
 
+    private fun sendCommand(
+        widget: TerminalWidget,
+        command: String,
+        successMessage: String,
+        failurePrefix: String,
+        onCommandSent: () -> Unit,
+        onCommandFailed: () -> Unit
+    ) {
+        try {
+            widget.requestFocus()
+            widget.sendCommandToExecute(command)
+            onCommandSent()
+            AiTerminalBridgeService.notify(project, successMessage, NotificationType.INFORMATION)
+        } catch (_: Throwable) {
+            try {
+                sendDirectInput(widget, "$command\r")
+                onCommandSent()
+                AiTerminalBridgeService.notify(project, successMessage, NotificationType.INFORMATION)
+            } catch (writeException: Throwable) {
+                AiTerminalBridgeService.notify(project, "$failurePrefix: ${writeException.message}", NotificationType.WARNING)
+                onCommandFailed()
+            }
+        }
+    }
+
+    private fun sendDirectInput(widget: TerminalWidget, text: String) {
+        try {
+            val input = terminalInput(widget)
+            input.javaClass.getMethod("sendString", String::class.java).invoke(input, text)
+            return
+        } catch (_: Throwable) {
+        }
+
+        val accessor = widget.javaClass.getMethod("getTtyConnectorAccessor").invoke(widget)
+        accessor.javaClass
+            .getMethod("executeWithTtyConnector", java.util.function.Consumer::class.java)
+            .invoke(accessor, java.util.function.Consumer<Any> { connector ->
+                connector.javaClass.getMethod("write", String::class.java).invoke(connector, text)
+            })
+    }
+
+    private fun terminalInput(widget: TerminalWidget): Any {
+        val view = findField(widget.javaClass, "view")
+            ?.let { field -> field.also { it.isAccessible = true }.get(widget) }
+            ?: throw IllegalStateException("Cannot access the reworked terminal view.")
+        return findField(view.javaClass, "terminalInput")
+            ?.let { field -> field.also { it.isAccessible = true }.get(view) }
+            ?: throw IllegalStateException("Cannot access the reworked terminal input channel.")
+    }
+
+    private fun findField(type: Class<*>, name: String): java.lang.reflect.Field? {
+        var current: Class<*>? = type
+        while (current != null) {
+            try {
+                return current.getDeclaredField(name)
+            } catch (_: NoSuchFieldException) {
+                current = current.superclass
+            }
+        }
+        return null
+    }
+
+    private fun scheduleLineEndSpace(writeLineEndSpace: () -> Unit) {
+        Timer(SETTLE_INPUT_DELAY_MS) {
+            try {
+                writeLineEndSpace()
+            } catch (exception: Throwable) {
+                AiTerminalBridgeService.notify(project, "发送 AI Terminal 行尾空格失败：${exception.message}", NotificationType.WARNING)
+            }
+        }.apply {
+            isRepeats = false
+            start()
+        }
+    }
+
     @Suppress("UNCHECKED_CAST")
     private fun enumValue(className: String, valueName: String): Any? {
         return try {
@@ -165,5 +312,8 @@ class LegacyReworkedTerminalHelper(
 
     companion object {
         private const val TERMINAL_TOOL_WINDOW_ID = "Terminal"
+        private const val REWORKED_WIDGET_CLASS = "com.intellij.terminal.frontend.ReworkedTerminalWidget"
+        private const val LINE_END_SPACE = "\u0005 "
+        private const val SETTLE_INPUT_DELAY_MS = 300
     }
 }

@@ -36,6 +36,8 @@ C:\Projects\demo\src\main\java\com\example\ExampleController.java:22
 
 支持的复制模式包括 `{{...}}`、`[[...]]`、函数调用、URL、点号链、引号字符串、标识符和数字。点击复制链接不会占用文件跳转链接的区间，两者互不干扰。
 
+> **注意：** 在 Classic 终端中，点击复制链接样式可能显示异常。如需关闭，可在 Settings → Tools → AI Terminal Tools 中取消勾选"启用点击复制"。
+
 ### 🚨 控制台错误发送
 
 Run/Debug Console 中的多语言错误/异常首行会显示发送图标，点击后自动将当前可见错误段发送到当前激活的 Terminal。
@@ -189,13 +191,14 @@ src/main/kotlin/io/github/q110/aiterminaltools/
 
 - Frontend：IDE 2025.3+ 使用 `TerminalToolWindowTabsManager`。
 - Legacy Reworked：IDE 2025.1 到 2025.2 通过反射调用旧 Reworked Terminal API。
+- OpenCode：IDE 2025.1 到 2025.2 使用 Classic Terminal 启动，避免旧 Reworked Terminal 显示异常。
 - Classic：回退到 `ShellTerminalWidget` 和 TTY Connector。
 
 ## 🛠️ 构建与运行
 
 环境要求：
 
-- [IntelliJ IDEA Ultimate 2025.3](https://www.jetbrains.com/idea/download/)，或通过 `-P` 参数切换 IDE 类型和版本。
+- [IntelliJ IDEA Ultimate 2025.1+](https://www.jetbrains.com/idea/download/)，或通过 `-P` 参数切换 IDE 类型和版本。
 - [JDK 17](https://www.jetbrains.com/help/idea/sdk.html)。
 - [Gradle Wrapper](https://docs.gradle.org/current/userguide/gradle_wrapper.html)。
 
@@ -203,7 +206,8 @@ src/main/kotlin/io/github/q110/aiterminaltools/
 
 ```powershell
 .\gradlew.bat runIde
-.\gradlew.bat buildPlugin -PplatformVersion=2025.3 -PplatformType=IU
+.\gradlew.bat buildPlugin "-PplatformVersion=2025.1" "-PplatformType=IU"
+.\gradlew.bat runIde "-PplatformVersion=2025.3" "-PplatformType=IU"
 .\gradlew.bat buildPlugin
 ```
 
