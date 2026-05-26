@@ -38,24 +38,23 @@ C:\Projects\demo\src\main\java\com\example\ExampleController.java:22
 
 ### 🚨 控制台错误发送
 
-Run/Debug Console 中的 Java/JVM 异常首行会显示发送图标，点击后自动将当前可见异常段发送到当前激活的 Terminal。
+Run/Debug Console 中的多语言错误/异常首行会显示发送图标，点击后自动将当前可见错误段发送到当前激活的 Terminal。
 
 发送范围：
 
-- 从异常首行开始，例如 `Caused by: java.net.ConnectException: Connection timed out: connect`。
-- 包含后续连续的 `at ...(...)` 调用栈行。
-- 不包含 `... N common frames omitted`、`<N folded frames>`、`Disconnected from ...` 或 `Process finished ...`。
+- 从错误首行开始，例如 `Caused by: java.net.ConnectException: Connection timed out: connect`、`Traceback (most recent call last):`、`TypeError: ...`、`panic: ...`、`error[E0599]: ...`。
+- 按官方常见输出格式识别 Java/JVM、Python、JavaScript/Node.js、TypeScript、Go、Rust、Ruby 以及 GCC/Clang C/C++ 编译诊断。
+- 包含后续连续的调用栈、traceback、backtrace、编译诊断附属行、源码摘录和插入符定位行。
+- 不包含 `<N folded frames>`、`Disconnected from ...` 或 `Process finished ...` 等非错误内容。
 
 发送格式：
 
 ```text
 控制台错误：
 -------
-<异常首行和连续 stack frames>
+<错误首行和连续错误上下文>
 -------
 ```
-
-如果一段 stack trace 中有多个 `Caused by:`，每个异常段会独立显示图标，点击不同图标只发送对应异常段。
 
 可在 Settings → Tools → AI Terminal Tools 中通过“启用控制台错误发送图标”开关启用或关闭。
 
