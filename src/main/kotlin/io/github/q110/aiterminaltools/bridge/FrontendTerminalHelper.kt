@@ -7,9 +7,6 @@ import com.intellij.openapi.wm.ToolWindowManager
 import com.intellij.terminal.frontend.toolwindow.TerminalToolWindowTabsManager
 import com.intellij.ui.content.Content
 import io.github.q110.aiterminaltools.bridge.AiTerminalBridgeService.BridgeResult
-import java.awt.Component
-import java.awt.Robot
-import java.awt.event.KeyEvent
 import javax.swing.JComponent
 import javax.swing.Timer
 
@@ -66,8 +63,9 @@ class FrontendTerminalHelper(
                         .requestFocusInProject(focusComponent, project)
                         .doWhenDone(Runnable {
                             try {
-                                sendText(view, command)
-                                scheduleEnter(view, focusComponent, false, successMessage, onCommandSent)
+                                sendCommandToExecute(view, command)
+                                onCommandSent()
+                                AiTerminalBridgeService.notify(project, successMessage, NotificationType.INFORMATION)
                             } catch (exception: Throwable) {
                                 AiTerminalBridgeService.notify(project, "$failurePrefix: ${exception.message}", NotificationType.WARNING)
                             }
@@ -140,37 +138,6 @@ class FrontendTerminalHelper(
         }
     }
 
-    private fun scheduleEnter(
-        view: Any,
-        focusComponent: JComponent,
-        settleAtLineEnd: Boolean,
-        successMessage: String = "已发送到 AI Terminal",
-        onEnterSent: () -> Unit = {}
-    ) {
-        val timer = Timer(100) {
-            try {
-                IdeFocusManager.getInstance(project)
-                    .requestFocusInProject(focusComponent, project)
-                    .doWhenDone(Runnable {
-                        pressEnter(view, focusComponent)
-                        onEnterSent()
-                        if (settleAtLineEnd) {
-                            scheduleLineEndSpace(view, focusComponent, true)
-                        } else {
-                            AiTerminalBridgeService.notify(project, successMessage, NotificationType.INFORMATION)
-                        }
-                    })
-                    .doWhenRejected(Runnable {
-                        AiTerminalBridgeService.notify(project, "Cannot refocus the AI terminal.", NotificationType.WARNING)
-                    })
-            } catch (exception: Throwable) {
-                AiTerminalBridgeService.notify(project, "Failed to invoke Enter: ${exception.message}", NotificationType.WARNING)
-            }
-        }
-        timer.isRepeats = false
-        timer.start()
-    }
-
     private fun scheduleLineEndSpace(view: Any, focusComponent: JComponent, notifyAfter: Boolean) {
         val timer = Timer(300) {
             try {
@@ -193,22 +160,6 @@ class FrontendTerminalHelper(
         timer.start()
     }
 
-    private fun pressEnter(view: Any, focusComponent: JComponent) {
-        try {
-            val robot = Robot()
-            robot.keyPress(KeyEvent.VK_ENTER)
-            robot.keyRelease(KeyEvent.VK_ENTER)
-            return
-        } catch (_: Throwable) {
-        }
-        try {
-            callSendEnter(view)
-            return
-        } catch (_: Throwable) {
-        }
-        dispatchEnterKeyEvent(focusComponent)
-    }
-
     private fun sendRawString(view: Any, text: String) {
         val input = terminalInput(view)
         input.javaClass.getMethod("sendString", String::class.java).invoke(input, text)
@@ -222,13 +173,14 @@ class FrontendTerminalHelper(
         }
     }
 
-    private fun callSendEnter(view: Any) {
-        val input = terminalInput(view)
-        input.javaClass.getMethod("sendEnter").invoke(input)
-    }
-
     private fun sendText(view: Any, text: String) {
         view.javaClass.getMethod("sendText", String::class.java).invoke(view, text)
+    }
+
+    private fun sendCommandToExecute(view: Any, command: String) {
+        val builder = view.javaClass.getMethod("createSendTextBuilder").invoke(view)
+        val executableBuilder = builder.javaClass.getMethod("shouldExecute").invoke(builder)
+        executableBuilder.javaClass.getMethod("send", String::class.java).invoke(executableBuilder, command)
     }
 
     private fun terminalInput(view: Any): Any {
@@ -247,12 +199,6 @@ class FrontendTerminalHelper(
 
     private fun preferredFocusableComponent(view: Any): JComponent? {
         return view.javaClass.getMethod("getPreferredFocusableComponent").invoke(view) as? JComponent
-    }
-
-    private fun dispatchEnterKeyEvent(component: Component) {
-        val now = System.currentTimeMillis()
-        component.dispatchEvent(KeyEvent(component, KeyEvent.KEY_PRESSED, now, 0, KeyEvent.VK_ENTER, '\n'))
-        component.dispatchEvent(KeyEvent(component, KeyEvent.KEY_RELEASED, now, 0, KeyEvent.VK_ENTER, '\n'))
     }
 
     private fun findField(type: Class<*>, name: String): java.lang.reflect.Field? {
