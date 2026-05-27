@@ -6,7 +6,7 @@
     <depends>com.intellij.modules.platform</depends>
     <depends>com.intellij.modules.vcs</depends>
     <depends>org.jetbrains.plugins.terminal</depends>
-    <depends optional="true" config-file="terminal-frontend.xml">intellij.terminal.frontend</depends>
+    <depends optional="true">intellij.terminal.frontend</depends>
 
     <extensions defaultExtensionNs="com.intellij">
         <applicationService serviceImplementation="io.github.q110.aiterminaltools.settings.AiTerminalToolsSettings"/>
@@ -41,13 +41,13 @@
         <action
             id="AiTerminalTools.StartOpenCode"
             class="io.github.q110.aiterminaltools.bridge.StartOpenCodeAction"
-            icon="/icons/opencode-official-action.png"
+            icon="/icons/opencode-official-action.svg"
             text="启动 OpenCode"
             description="打开新终端并运行 opencode"/>
         <action
             id="AiTerminalTools.StartClaudeCode"
             class="io.github.q110.aiterminaltools.bridge.StartClaudeCodeAction"
-            icon="/icons/claude-code-official-action.png"
+            icon="/icons/claude-code-official-action.svg"
             text="启动 Claude Code"
             description="打开新终端并运行 claude"/>
         <action
