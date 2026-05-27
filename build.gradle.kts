@@ -54,22 +54,28 @@ intellijPlatform {
         id = "io.github.q110.aiterminaltools"
         name = "AI Terminal Tools"
         version = project.version.toString()
-        description = """
-            <p>AI Terminal Tools enhances JetBrains IDE terminals and consoles with fast navigation, copy helpers, AI terminal sending, OpenCode and Claude Code launch actions, and Chinese commit message generation.</p>
+description = """
+            <p>AI Terminal Tools enhances JetBrains IDE terminals and consoles with fast navigation, click-to-copy, AI terminal sending, OpenCode / Claude Code launch actions, and commit message generation.</p>
             <ul>
-              <li>File navigation: turns terminal and console file references into clickable links, including short file names, relative paths, absolute paths, line numbers, and line ranges.</li>
-              <li>Click-to-copy: recognizes structured output fragments such as method calls, API paths, dotted identifiers, string literals, numbers, and URLs, then copies them to the clipboard with one click.</li>
-              <li>Console error sending: adds an inline AI terminal icon to Java/JVM exception lines and sends the current visible exception segment to the active terminal with one click.</li>
-              <li>AI terminal bridge: sends editor selections, project tree file or folder paths, and editor tab paths to the active terminal input area, including support for completing @path input state.</li>
-              <li>Launch actions: starts OpenCode with <code>opencode</code> or Claude Code with <code>claude</code> in dedicated terminal tabs.</li>
-              <li>Commit message generation: adds a commit toolbar action that asks OpenCode to generate concise Chinese commit message bullets from the files checked in the Commit panel.</li>
+              <li>File navigation: turns terminal and console file references into clickable links, including short file names, relative/absolute paths, line numbers, and line ranges. Uses IntelliJ project index for accurate matching across all project types.</li>
+              <li>Click-to-copy: recognizes structured terminal output fragments such as method calls, API paths, dotted identifiers, strings, numbers, and URLs, then copies them to the clipboard with one click. Works across Classic, Reworked, and Frontend terminal engines.</li>
+              <li>Console error sending: adds an inline AI terminal icon to multi-language exception lines (Java, Python, JS/TS, Go, Rust, Ruby, C/C++) and sends the current visible error segment to the active terminal.</li>
+              <li>AI terminal bridge: sends editor selections, project tree file/folder paths, editor tab paths, and dragged files to the active terminal input area, including support for completing @path input state.</li>
+              <li>Launch actions: starts OpenCode or Claude Code in dedicated terminal tabs.</li>
+              <li>Commit message generation: adds a commit toolbar action that uses OpenCode or Claude Code to generate concise commit message bullets from the files checked in the Commit panel, with configurable AI tool, model, and extra prompts.</li>
             </ul>
         """.trimIndent()
         changeNotes = """
             <ul>
-              <li>Renames the plugin to AI Terminal Tools.</li>
-              <li>Adds separate Start OpenCode and Start Claude Code actions.</li>
-              <li>Sends selections, paths, console errors, and dragged paths directly to the currently active terminal.</li>
+              <li>IDE version baseline lowered to 2025.1, with full support for Legacy Reworked, Frontend, and Classic terminal engines.</li>
+              <li>Click-to-copy now works in Classic terminals via mouse click detection, and is restricted to the Terminal tool window only.</li>
+              <li>Console error parsing now supports multi-language errors: Java, Python, JavaScript/TypeScript, Go, Rust, Ruby, and C/C++.</li>
+              <li>Commit message generation supports OpenCode and Claude Code dual-engine switching, with per-tool model configuration and optional extra prompts.</li>
+              <li>File reference scoring upgraded to use IntelliJ project index, enabling accurate matching for all project types.</li>
+              <li>Four new right-click menu locations added: Diff viewer, read-only viewer, and more.</li>
+              <li>Custom additional file extensions now configurable in settings.</li>
+              <li>Fixed terminal occupying only part of the tool window area on icon launch.</li>
+              <li>Fixed AI terminal reference leak.</li>
             </ul>
         """.trimIndent()
 
