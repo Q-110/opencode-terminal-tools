@@ -9,6 +9,7 @@ import com.intellij.openapi.editor.markup.TextAttributes
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Key
 import com.intellij.openapi.vfs.VirtualFile
+import com.intellij.openapi.wm.ToolWindowManager
 import com.intellij.psi.search.FilenameIndex
 import com.intellij.psi.search.GlobalSearchScope
 import io.github.q110.aiterminaltools.copy.CopyTextHyperlinkInfo
@@ -111,7 +112,7 @@ internal class AiTerminalToolsFilter(
 
         // 阶段四：解析点击复制模式（跳过已被文件链接占用的区间）
         // Classic 终端中不通过 Filter 生成复制链接，由 DropService 的 MouseAdapter 处理以避免样式异常
-        if (settings.copyLinksEnabled && !isCurrentTerminalClassic()) {
+        if (settings.copyLinksEnabled && isInTerminalToolWindow() && !isCurrentTerminalClassic()) {
             for (match in findCopyMatches(line, fileLinkRanges)) {
                 items += Filter.ResultItem(
                     baseOffset + match.range.first,
@@ -149,6 +150,12 @@ private fun normalTextAttributes(): TextAttributes {
 
     private fun isCurrentTerminalClassic(): Boolean {
         return project.getUserData(KEY_CURRENT_TERMINAL_CLASSIC) == true
+    }
+
+    /** 判断当前控制台视图是否为终端工具窗口（非 Run/Debug 等控制台） */
+    private fun isInTerminalToolWindow(): Boolean {
+        val toolWindow = ToolWindowManager.getInstance(project).getToolWindow("Terminal")
+        return toolWindow?.isVisible == true
     }
 
     /** 在 ReadAction 中按路径查找 VirtualFile */
