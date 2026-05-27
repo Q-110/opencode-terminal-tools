@@ -9,6 +9,7 @@ import com.intellij.openapi.project.Project
 import com.intellij.openapi.vfs.VirtualFile
 import io.github.q110.aiterminaltools.filter.displayPath
 import io.github.q110.aiterminaltools.filter.normalizePath
+import com.intellij.openapi.roots.ProjectFileIndex
 import io.github.q110.aiterminaltools.filter.pathMatches
 
 internal class FileReferenceHyperlinkInfo(
@@ -84,15 +85,15 @@ internal class FileReferenceHyperlinkInfo(
         }
     }
 
-    /** 打分规则：src/main +80, src/test -40, build/target/out -80, templates +30, static +20, 精确文件名后缀 +10 */
+    /** 利用 IntelliJ 项目索引打分：源码根 +100, 测试根 -60, 排除目录 -200, 库文件 -100, 精确文件名后缀 +10 */
     private fun scoreFile(file: VirtualFile): Int {
-        val path = normalizePath(displayPath(project, file))
+        val fileIndex = ProjectFileIndex.getInstance(project)
         var score = 0
-        if ("src/main/" in path) score += 80
-        if ("src/test/" in path) score -= 40
-        if ("target/" in path || "build/" in path || "out/" in path) score -= 80
-        if ("src/main/resources/templates/" in path) score += 30
-        if ("src/main/resources/static/" in path) score += 20
+        if (fileIndex.isInSourceContent(file)) score += 100
+        if (fileIndex.isInTestSourceContent(file)) score -= 60
+        if (fileIndex.isExcluded(file)) score -= 200
+        if (fileIndex.isInLibrary(file)) score -= 100
+        val path = normalizePath(displayPath(project, file))
         if (path.endsWith("/$fileName")) score += 10
         return score
     }

@@ -28,7 +28,7 @@ C:\Projects\demo\src\main\java\com\example\ExampleController.java:22
 - 支持扩展名：`java`, `kt`, `kts`, `gradle`, `js`, `ts`, `vue`, `html`, `css`, `scss`, `sass`, `less`, `py`, `c`, `cpp`, `cc`, `ps1`, `cmd`, `json`, `toml`, `yaml`, `yml`, `conf`, `env`, `properties`, `xml`, `md`, `sql`。
 - `@路径` 引用优先级更高，用于匹配 AI 终端中的路径引用。
 
-当多个文件匹配同一引用时，插件会根据路径特征打分排序；若仍有多个候选，弹出选择对话框供用户手动选取。
+当多个文件匹配同一引用时，插件会利用 IntelliJ 项目索引打分排序；若仍有多个候选，弹出选择对话框供用户手动选取。
 
 ### 📋 点击复制
 
