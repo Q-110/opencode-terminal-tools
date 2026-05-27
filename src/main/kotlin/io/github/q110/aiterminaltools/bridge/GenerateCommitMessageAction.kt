@@ -7,6 +7,7 @@ import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.ModalityState
+import com.intellij.openapi.progress.ProcessCanceledException
 import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.progress.Task
 import com.intellij.openapi.project.Project
@@ -92,7 +93,7 @@ class GenerateCommitMessageAction : AnAction(AllIcons.Debugger.Console) {
         private val includedUnversionedFiles: List<FilePath>,
         private val commitMessageAiTool: String
     ) : Task.Backgroundable(project, commitMessageTaskTitle(commitMessageAiTool), true) {
-        override fun run(indicator: ProgressIndicator) {
+override fun run(indicator: ProgressIndicator) {
             try {
                 indicator.text = "Collecting selected changes"
                 val changeSummary = CommitChangeSummary(project, includedChanges, includedUnversionedFiles).build()
@@ -107,6 +108,8 @@ class GenerateCommitMessageAction : AnAction(AllIcons.Debugger.Console) {
                     commitMessageUi.focus()
                     AiTerminalBridgeService.notify(project, "已生成提交信息", NotificationType.INFORMATION)
                 }
+            } catch (exception: ProcessCanceledException) {
+                throw exception
             } catch (exception: CommitMessageGenerationException) {
                 invokeOnEdt {
                     AiTerminalBridgeService.notify(project, exception.message ?: "生成提交信息失败", NotificationType.WARNING)
@@ -129,7 +132,7 @@ class GenerateCommitMessageAction : AnAction(AllIcons.Debugger.Console) {
                         action()
                     }
                 },
-                ModalityState.any()
+ModalityState.any()
             )
         }
     }
@@ -151,15 +154,62 @@ class GenerateCommitMessageAction : AnAction(AllIcons.Debugger.Console) {
                 throw CommitMessageGenerationException("没有可用于生成提交文案的文件。")
             }
 
-            val fileList = allFiles.joinToString(separator = "\n") { "- ${it.status}: ${it.relativePath}" }
-            return truncateInput(
-                """
-                已勾选文件：
-                $fileList
+            val diffs = computeDiffs(allFiles)
+            val sb = StringBuilder()
+            sb.appendLine("已勾选文件：")
+            for (file in allFiles) {
+                sb.appendLine("- ${file.status}: ${file.relativePath}")
+            }
+            sb.appendLine()
+            sb.appendLine("各文件变更内容（只分析以下文件的变更来生成提交信息）：")
+            for (file in allFiles) {
+                val diff = diffs[file.relativePath] ?: ""
+                if (diff.isNotEmpty()) {
+                    sb.appendLine("=== ${file.relativePath} ===")
+                    sb.appendLine(diff)
+                    sb.appendLine()
+                }
+            }
+            return sb.toString()
+        }
 
-                只分析上面列出的文件。不要分析未勾选文件。
-                """.trimIndent()
-            )
+        private fun computeDiffs(files: List<IncludedFile>): Map<String, String> {
+            val diffs = linkedMapOf<String, String>()
+            for (file in files) {
+                val content = when (file.status) {
+                    "新增" -> readFileContent(file.absolutePath)
+                    "删除" -> gitDiff(file.gitRoot, file.relativePath)
+                    else -> gitDiff(file.gitRoot, file.relativePath)
+                }
+                if (!content.isNullOrBlank()) {
+                    diffs[file.relativePath] = content
+                }
+            }
+            return diffs
+        }
+
+        private fun gitDiff(gitRoot: Path, relativePath: String): String? {
+            return try {
+                val process = ProcessBuilder(
+                    listOf("git", "diff", "--no-color", "--no-ext-diff", "--", relativePath)
+                )
+                    .directory(gitRoot.toFile())
+                    .redirectErrorStream(true)
+                    .start()
+                val output = process.inputStream.bufferedReader(StandardCharsets.UTF_8).readText()
+                process.waitFor(30, TimeUnit.SECONDS)
+                output.takeIf { it.isNotBlank() }
+            } catch (_: Throwable) {
+                null
+            }
+        }
+
+        private fun readFileContent(path: Path): String? {
+            return try {
+                Files.readString(path, StandardCharsets.UTF_8)
+            } catch (_: Throwable) {
+                null
+            }
         }
     }
 
@@ -171,8 +221,8 @@ class GenerateCommitMessageAction : AnAction(AllIcons.Debugger.Console) {
             val basePath = project.basePath
                 ?: throw CommitMessageGenerationException("项目没有可用的工作目录。")
             val settings = AiTerminalToolsSettings.getInstance().getState()
-            val prompt = buildPrompt(changeSummary)
-            val configHome = createOpenCodeConfigHome()
+            val fullPrompt = buildPrompt(changeSummary)
+            val configHome = createOpenCodeConfigHome(fullPrompt)
             val basePathPath = Path.of(basePath).toAbsolutePath().normalize()
             val sessionTitle = "Generate commit message ${UUID.randomUUID()}"
             try {
@@ -191,7 +241,7 @@ class GenerateCommitMessageAction : AnAction(AllIcons.Debugger.Console) {
                 if (model.isNotEmpty()) {
                     command += listOf("-m", model)
                 }
-                command += prompt
+                command += "请根据系统提示生成提交信息"
 
                 val result = runProcess(
                     command,
@@ -240,7 +290,7 @@ class GenerateCommitMessageAction : AnAction(AllIcons.Debugger.Console) {
             } catch (_: Throwable) {
             }
         }
-    }
+}
 
     private class ClaudeCodeCommitMessageGenerator(
         private val project: Project,
@@ -255,7 +305,7 @@ class GenerateCommitMessageAction : AnAction(AllIcons.Debugger.Console) {
             val command = mutableListOf(
                 claudeCommand(),
                 "-p",
-                prompt,
+                "请根据以上变更内容生成中文提交信息",
                 "--output-format",
                 "text",
                 "--no-session-persistence"
@@ -265,9 +315,10 @@ class GenerateCommitMessageAction : AnAction(AllIcons.Debugger.Console) {
                 command += listOf("--model", model)
             }
 
-            val result = runProcess(
+            val result = runProcessWithStdin(
                 command,
                 basePathPath,
+                prompt,
                 CLAUDE_TIMEOUT_SECONDS,
                 indicator,
                 "claude 生成提交信息超时"
@@ -299,7 +350,6 @@ class GenerateCommitMessageAction : AnAction(AllIcons.Debugger.Console) {
 
     companion object {
         private const val COMMIT_MESSAGE_AGENT = "commit-message"
-        private const val MAX_INPUT_CHARS = 4000
         private const val ERROR_OUTPUT_LIMIT = 600
         private const val OPENCODE_TIMEOUT_SECONDS = 120L
         private const val CLAUDE_TIMEOUT_SECONDS = 120L
@@ -335,7 +385,7 @@ class GenerateCommitMessageAction : AnAction(AllIcons.Debugger.Console) {
             aiTool: String
         ): CommitMessageGenerator {
             return if (aiTool == COMMIT_MESSAGE_AI_TOOL_CLAUDE) {
-                ClaudeCodeCommitMessageGenerator(project, changeSummary)
+ClaudeCodeCommitMessageGenerator(project, changeSummary)
             } else {
                 OpenCodeCommitMessageGenerator(project, changeSummary)
             }
@@ -346,17 +396,11 @@ class GenerateCommitMessageAction : AnAction(AllIcons.Debugger.Console) {
             val basePrompt = AiTerminalToolsSettings.StateData.DEFAULT_COMMIT_MESSAGE_BASE_PROMPT
             val additionalPrompt = settings.resolvedCommitMessageAdditionalPrompt()
             return """
-                请根据 Commit 面板已勾选文件生成提交文案。
+                根据以下变更内容生成提交信息。
 
-                你可以在当前项目目录中查看变更，但必须遵守：
-                - 只分析“已勾选文件”清单中的文件。
-                - tracked 文件如需详情，只执行 git diff --no-color --no-ext-diff -- <已勾选路径>。
-                - 新增未跟踪文件如需详情，只读取清单中的文件。
-                - 不要修改任何文件，不要执行与生成提交文案无关的命令。
-
-                - 只输出提交文案，不要解释，不要分析过程，不要 Markdown 代码块。
-                - 使用 "- " 分条。
-                - 不要编造变更中不存在的内容。
+                只输出提交文案，不要解释，不要分析过程，不要 Markdown 代码块。
+                使用 "- " 分条。
+                不要编造变更中不存在的内容。
 
                 基础要求：
                 $basePrompt
@@ -484,9 +528,57 @@ class GenerateCommitMessageAction : AnAction(AllIcons.Debugger.Console) {
             process.destroyForcibly()
         }
 
-        private fun truncateInput(input: String): String {
-            if (input.length <= MAX_INPUT_CHARS) return input
-            return input.take(MAX_INPUT_CHARS) + "\n\n[文件清单过长，后续内容已截断]"
+        private fun runProcessWithStdin(
+            command: List<String>,
+            workingDirectory: Path,
+            stdinContent: String,
+            timeoutSeconds: Long,
+            indicator: ProgressIndicator? = null,
+            timeoutMessage: String? = null
+        ): ProcessResult {
+            val process = try {
+                ProcessBuilder(command)
+                    .directory(workingDirectory.toFile())
+                    .redirectErrorStream(true)
+                    .start()
+            } catch (exception: Throwable) {
+                throw CommitMessageGenerationException("无法启动命令 ${command.firstOrNull().orEmpty()}：${exception.message}")
+            }
+            try {
+                process.outputStream.bufferedWriter(StandardCharsets.UTF_8).use { writer ->
+                    writer.write(stdinContent)
+                    writer.flush()
+                }
+            } catch (_: Throwable) {
+            }
+
+            val output = StringBuilder()
+            val readerThread = Thread {
+                process.inputStream.bufferedReader(StandardCharsets.UTF_8).useLines { lines ->
+                    lines.forEach { line ->
+                        output.appendLine(line)
+                    }
+                }
+            }
+            readerThread.isDaemon = true
+            readerThread.start()
+
+            val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(timeoutSeconds)
+            while (true) {
+                if (indicator?.isCanceled == true) {
+                    destroyProcessTree(process)
+                    throw CommitMessageGenerationException("已取消")
+                }
+                if (process.waitFor(PROCESS_POLL_INTERVAL_MS, TimeUnit.MILLISECONDS)) {
+                    break
+                }
+                if (System.nanoTime() >= deadline) {
+                    destroyProcessTree(process)
+                    throw CommitMessageGenerationException(timeoutMessage ?: "命令执行超时：${command.firstOrNull().orEmpty()}")
+                }
+            }
+            readerThread.join(TimeUnit.SECONDS.toMillis(2))
+            return ProcessResult(process.exitValue(), output.toString())
         }
 
         private fun parseOpenCodeSessions(json: String): List<OpenCodeSession> {
@@ -555,31 +647,31 @@ class GenerateCommitMessageAction : AnAction(AllIcons.Debugger.Console) {
             }
         }
 
-        private fun createOpenCodeConfigHome(): Path {
+        private fun createOpenCodeConfigHome(fullPrompt: String): Path {
             val configHome = Files.createTempDirectory("opencode-commit-message-config")
             val configDir = configHome.resolve("opencode")
             Files.createDirectories(configDir)
             Files.writeString(
                 configDir.resolve("opencode.json"),
-                commitMessageAgentConfig(),
+                commitMessageAgentConfig(fullPrompt),
                 StandardCharsets.UTF_8
             )
             return configHome
         }
 
-        private fun commitMessageAgentConfig(): String {
+        private fun commitMessageAgentConfig(fullPrompt: String): String {
             return """
                 {
                   "agent": {
                     "$COMMIT_MESSAGE_AGENT": {
                       "description": "Commit message generator",
                       "mode": "primary",
-                      "prompt": ${jsonString(commitMessageAgentPrompt())},
+                      "prompt": ${jsonString(fullPrompt)},
                       "tools": {
                         "invalid": false,
                         "skill": false,
                         "question": false,
-                        "bash": true,
+                        "bash": false,
                         "read": false,
                         "glob": false,
                         "grep": false,
@@ -594,14 +686,6 @@ class GenerateCommitMessageAction : AnAction(AllIcons.Debugger.Console) {
                   }
                 }
             """.trimIndent()
-        }
-
-        private fun commitMessageAgentPrompt(): String {
-            val basePrompt = AiTerminalToolsSettings.StateData.DEFAULT_COMMIT_MESSAGE_BASE_PROMPT
-            val additionalPrompt = AiTerminalToolsSettings.getInstance()
-                .getState()
-                .resolvedCommitMessageAdditionalPrompt()
-            return "$basePrompt\n$additionalPrompt"
         }
 
         private fun jsonString(value: String): String {
