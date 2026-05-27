@@ -17,8 +17,12 @@ class AiTerminalToolsMenuRegistrar : StartupActivity, DumbAware {
         val actionManager = ActionManager.getInstance()
 
         registerMenuFirst(actionManager, "EditorPopupMenu", "AiTerminalTools.SendSelectionToAiTerminal")
+        registerMenuFirst(actionManager, "ConsoleEditorPopupMenu", "AiTerminalTools.SendSelectionToAiTerminal")
+        registerMenuFirst(actionManager, "Diff.EditorPopupMenu", "AiTerminalTools.SendSelectionToAiTerminal")
+        registerMenuFirst(actionManager, "TextViewerEditorPopupMenu", "AiTerminalTools.SendSelectionToAiTerminal")
         registerMenuFirst(actionManager, "ProjectViewPopupMenu", "AiTerminalTools.SendPathToAiTerminal")
         registerMenuFirst(actionManager, "EditorTabPopupMenu", "AiTerminalTools.SendPathToAiTerminal")
+        registerMenuFirst(actionManager, "ChangesViewPopupMenu", "AiTerminalTools.SendPathToAiTerminal")
         registerToolbarAction(actionManager, "AiTerminalTools.StartOpenCode")
         registerToolbarAction(actionManager, "AiTerminalTools.StartClaudeCode")
     }

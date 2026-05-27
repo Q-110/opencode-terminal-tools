@@ -42,19 +42,19 @@ class SendSelectionToAiTerminalAction : AnAction(AllIcons.Debugger.Console) {
         val document = editor.document
         val virtualFile = event.getData(CommonDataKeys.VIRTUAL_FILE)
             ?: FileDocumentManager.getInstance().getFile(document)
-        if (virtualFile == null) {
-            AiTerminalBridgeService.notify(project, "当前编辑器没有对应的文件。", NotificationType.WARNING)
-            return
-        }
 
-        val startOffset = selectionModel.selectionStart
-        val endOffset = selectionModel.selectionEnd
-        val endOffsetForLine = (endOffset - 1).coerceAtLeast(startOffset)
-        val startLine = document.getLineNumber(startOffset) + 1
-        val endLine = document.getLineNumber(endOffsetForLine) + 1
-        val filePath = displayPath(project, virtualFile)
-        val lineRange = if (startLine == endLine) startLine else "$startLine-$endLine"
-        val payload = "@$filePath:$lineRange\n-------\n$selectedText\n-------\n"
+        val payload = if (virtualFile != null) {
+            val startOffset = selectionModel.selectionStart
+            val endOffset = selectionModel.selectionEnd
+            val endOffsetForLine = (endOffset - 1).coerceAtLeast(startOffset)
+            val startLine = document.getLineNumber(startOffset) + 1
+            val endLine = document.getLineNumber(endOffsetForLine) + 1
+            val filePath = displayPath(project, virtualFile)
+            val lineRange = if (startLine == endLine) startLine else "$startLine-$endLine"
+            "@$filePath:$lineRange\n-------\n$selectedText\n-------\n"
+        } else {
+            "-------\n$selectedText\n-------\n"
+        }
 
         when (val result = AiTerminalBridgeService.getInstance(project).sendDirectPaste(payload, event.dataContext)) {
             is AiTerminalBridgeService.BridgeResult.Success -> {
