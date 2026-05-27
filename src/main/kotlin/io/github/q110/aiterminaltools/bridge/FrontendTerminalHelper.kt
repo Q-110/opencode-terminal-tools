@@ -37,7 +37,8 @@ class FrontendTerminalHelper(
         builder = tabBuilderMethod("workingDirectory", String::class.java).invoke(builder, workingDirectory)
         builder = tabBuilderMethod("tabName", String::class.java).invoke(builder, tabName)
         builder = tabBuilderMethod("requestFocus", Boolean::class.javaPrimitiveType).invoke(builder, true)
-        builder = tabBuilderMethod("deferSessionStartUntilUiShown", Boolean::class.javaPrimitiveType).invoke(builder, false)
+        // 等 UI 完整显示后再启动会话，避免 2025.3+ 首次渲染宽度异常。
+        builder = tabBuilderMethod("deferSessionStartUntilUiShown", Boolean::class.javaPrimitiveType).invoke(builder, true)
         return tabBuilderMethod("createTab").invoke(builder)
     }
 
