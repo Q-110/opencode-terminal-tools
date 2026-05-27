@@ -7,6 +7,7 @@ import com.intellij.openapi.editor.colors.EditorColorsManager
 import com.intellij.openapi.editor.colors.EditorColorsScheme
 import com.intellij.openapi.editor.markup.TextAttributes
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.util.Key
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.psi.search.FilenameIndex
 import com.intellij.psi.search.GlobalSearchScope
@@ -109,7 +110,8 @@ internal class AiTerminalToolsFilter(
         }
 
         // 阶段四：解析点击复制模式（跳过已被文件链接占用的区间）
-        if (settings.copyLinksEnabled && !isClassicTerminalFilterCall()) {
+        // Classic 终端中不通过 Filter 生成复制链接，由 DropService 的 MouseAdapter 处理以避免样式异常
+        if (settings.copyLinksEnabled && !isCurrentTerminalClassic()) {
             for (match in findCopyMatches(line, fileLinkRanges)) {
                 items += Filter.ResultItem(
                     baseOffset + match.range.first,
@@ -134,7 +136,7 @@ internal class AiTerminalToolsFilter(
         return cachedFileRefPattern
     }
 
-    private fun normalTextAttributes(): TextAttributes {
+private fun normalTextAttributes(): TextAttributes {
         val scheme: EditorColorsScheme = EditorColorsManager.getInstance().globalScheme
         return TextAttributes(
             scheme.defaultForeground,
@@ -145,12 +147,8 @@ internal class AiTerminalToolsFilter(
         )
     }
 
-    private fun isClassicTerminalFilterCall(): Boolean {
-        return Thread.currentThread().stackTrace.any { frame ->
-            frame.className.startsWith("com.jediterm.") ||
-                frame.className == "com.intellij.terminal.JBTerminalWidget" ||
-                frame.className == "org.jetbrains.plugins.terminal.ShellTerminalWidget"
-        }
+    private fun isCurrentTerminalClassic(): Boolean {
+        return project.getUserData(KEY_CURRENT_TERMINAL_CLASSIC) == true
     }
 
     /** 在 ReadAction 中按路径查找 VirtualFile */
@@ -206,6 +204,11 @@ internal class AiTerminalToolsFilter(
         }
 
         return matches.sortedBy { it.range.first }
+    }
+
+    companion object {
+        /** DropService 设置此 Key，Filter 读取以跳过 Classic 终端中的复制链接生成 */
+        val KEY_CURRENT_TERMINAL_CLASSIC = Key.create<Boolean>("ai-terminal-tools.currentTerminalClassic")
     }
 }
 

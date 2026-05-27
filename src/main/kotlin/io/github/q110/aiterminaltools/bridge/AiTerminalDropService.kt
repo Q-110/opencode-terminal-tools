@@ -23,6 +23,7 @@ import com.intellij.ui.content.ContentManagerEvent
 import com.intellij.ui.content.ContentManagerListener
 import com.intellij.ui.awt.RelativePoint
 import io.github.q110.aiterminaltools.copy.CopyTextHyperlinkInfo
+import io.github.q110.aiterminaltools.filter.AiTerminalToolsFilter
 import io.github.q110.aiterminaltools.filter.FilterPatterns
 import io.github.q110.aiterminaltools.filter.isCopyNoise
 import io.github.q110.aiterminaltools.settings.AiTerminalToolsSettings
@@ -70,6 +71,8 @@ class AiTerminalDropService(
     fun refreshDropTarget() {
         val targetContent = currentActiveContent()
         val dropEnabled = targetContent != null && (dragToAiTerminalEnabled() || isRecordedAiTerminalContent(targetContent))
+        val isClassic = targetContent != null && copyLinksEnabled() && isClassicContent(targetContent)
+        project.putUserData(AiTerminalToolsFilter.KEY_CURRENT_TERMINAL_CLASSIC, isClassic)
 
         dropTargetDisposables.keys
             .filter { it !== targetContent || !dropEnabled }
@@ -202,6 +205,16 @@ class AiTerminalDropService(
         return AiTerminalToolsSettings.getInstance().getState().copyLinksEnabled
     }
 
+    private fun isClassicContent(content: Content): Boolean {
+        val widget = TerminalToolWindowManager.findWidgetByContent(content) ?: return false
+        val jediTermWidget = try {
+            JBTerminalWidget.asJediTermWidget(widget)
+        } catch (_: Throwable) {
+            null
+        } ?: return false
+        return isClassicWidget(jediTermWidget)
+    }
+
     private fun isRecordedAiTerminalContent(content: Content): Boolean {
         return project.service<AiTerminalBridgeService>().isRecordedAiTerminalContent(content)
     }
@@ -256,15 +269,20 @@ class AiTerminalDropService(
 
     private fun copyMatchAt(panel: Component, event: MouseEvent): String? {
         val cell = try {
-            val method = panel.javaClass.getDeclaredMethod("panelPointToCell", java.awt.Point::class.java)
-            method.isAccessible = true
+            val method = findMethod(panel.javaClass, "panelPointToCell", java.awt.Point::class.java)
             method.invoke(panel, event.point)
         } catch (_: Throwable) {
             null
         } ?: return null
 
-        val lineNumber = cell.javaClass.getMethod("getLine").invoke(cell) as? Int ?: return null
-        val column = cell.javaClass.getMethod("getColumn").invoke(cell) as? Int ?: return null
+        val lineNumber = try {
+            findMethod(cell.javaClass, "getLine").invoke(cell) as? Int
+        } catch (_: Throwable) { null } ?: return null
+
+        val column = try {
+            findMethod(cell.javaClass, "getColumn").invoke(cell) as? Int
+        } catch (_: Throwable) { null } ?: return null
+
         val line = terminalLineText(panel, lineNumber)
             ?: terminalLineText(panel, lineNumber - 1)
             ?: return null
@@ -276,12 +294,24 @@ class AiTerminalDropService(
             return null
         }
         return try {
-            val buffer = panel.javaClass.getMethod("getTerminalTextBuffer").invoke(panel)
-            val line = buffer.javaClass.getMethod("getLine", Int::class.javaPrimitiveType).invoke(buffer, lineNumber)
-            line.javaClass.getMethod("getText").invoke(line) as? String
+            val buffer = findMethod(panel.javaClass, "getTerminalTextBuffer").invoke(panel)
+            val line = findMethod(buffer.javaClass, "getLine", Int::class.java).invoke(buffer, lineNumber)
+            findMethod(line.javaClass, "getText").invoke(line) as? String
         } catch (_: Throwable) {
             null
         }
+    }
+
+    private fun findMethod(type: Class<*>, name: String, vararg parameterTypes: Class<*>): java.lang.reflect.Method {
+        var current: Class<*>? = type
+        while (current != null) {
+            try {
+                return current.getDeclaredMethod(name, *parameterTypes).also { it.isAccessible = true }
+            } catch (_: NoSuchMethodException) {
+                current = current.superclass
+            }
+        }
+        throw NoSuchMethodException("$type.$name")
     }
 
     private fun findCopyMatchAt(line: String, column: Int): String? {

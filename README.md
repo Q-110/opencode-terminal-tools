@@ -36,7 +36,7 @@ C:\Projects\demo\src\main\java\com\example\ExampleController.java:22
 
 支持的复制模式包括 `{{...}}`、`[[...]]`、函数调用、URL、点号链、引号字符串、标识符和数字。点击复制链接不会占用文件跳转链接的区间，两者互不干扰。
 
-> **注意：** 在 Classic 终端中，点击复制链接样式可能显示异常。如需关闭，可在 Settings → Tools → AI Terminal Tools 中取消勾选"启用点击复制"。
+> **说明：** Classic 终端通过鼠标点击检测实现复制，文本无额外样式。
 
 ### 🚨 控制台错误发送
 
