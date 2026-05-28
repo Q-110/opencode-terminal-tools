@@ -1,4 +1,4 @@
-<idea-plugin>
+<idea-plugin require-restart="true">
     <id>io.github.q110.aiterminaltools</id>
     <name>AI Terminal Tools</name>
     <vendor>zibo</vendor>
