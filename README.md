@@ -222,7 +222,7 @@ src/main/kotlin/io/github/q110/aiterminaltools/
 | 项目 | 值 |
 |------|-----|
 | 插件 ID | `io.github.q110.aiterminaltools` |
-| 当前版本 | `0.0.1` |
+| 当前版本 | `0.1.1` |
 | Group | `io.github.q110` |
 | Vendor | `zibo` |
 | 许可证 | [MIT License](https://opensource.org/license/mit/) |

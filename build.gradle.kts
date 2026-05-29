@@ -4,7 +4,7 @@ plugins {
 }
 
 group = "io.github.q110"
-version = "0.1.0"
+version = "0.1.1"
 
 kotlin {
     jvmToolchain(17)
@@ -67,15 +67,7 @@ description = """
         """.trimIndent()
         changeNotes = """
             <ul>
-              <li>IDE version baseline lowered to 2025.1, with full support for Legacy Reworked, Frontend, and Classic terminal engines.</li>
-              <li>Click-to-copy now works in Classic terminals via mouse click detection, and is restricted to the Terminal tool window only.</li>
-              <li>Console error parsing now supports multi-language errors: Java, Python, JavaScript/TypeScript, Go, Rust, Ruby, and C/C++.</li>
-              <li>Commit message generation supports OpenCode and Claude Code dual-engine switching, with per-tool model configuration and optional extra prompts.</li>
-              <li>File reference scoring upgraded to use IntelliJ project index, enabling accurate matching for all project types.</li>
-              <li>Four new right-click menu locations added: Diff viewer, read-only viewer, and more.</li>
-              <li>Custom additional file extensions now configurable in settings.</li>
-              <li>Fixed terminal occupying only part of the tool window area on icon launch.</li>
-              <li>Fixed AI terminal reference leak.</li>
+              <li>Plugin configuration now requires an IDE restart after installation or update to ensure proper initialization.</li>
             </ul>
         """.trimIndent()
 
