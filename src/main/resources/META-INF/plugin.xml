@@ -13,6 +13,10 @@
         <projectService serviceImplementation="io.github.q110.aiterminaltools.bridge.AiTerminalBridgeService"/>
         <projectService serviceImplementation="io.github.q110.aiterminaltools.bridge.AiTerminalDropService"/>
         <projectService serviceImplementation="io.github.q110.aiterminaltools.console.AiConsoleErrorInlayService"/>
+        <projectService serviceImplementation="io.github.q110.aiterminaltools.monitor.AiTurnMonitorService"/>
+        <projectService serviceImplementation="io.github.q110.aiterminaltools.monitor.AiTurnEventServer"/>
+        <projectService serviceImplementation="io.github.q110.aiterminaltools.monitor.AiTurnSnapshotService"/>
+        <projectService serviceImplementation="io.github.q110.aiterminaltools.monitor.AiTurnDiffPresenter"/>
         <applicationConfigurable
             parentId="tools"
             instance="io.github.q110.aiterminaltools.settings.AiTerminalToolsConfigurable"
@@ -58,5 +62,10 @@
             description="根据已勾选文件生成简洁提交信息">
             <add-to-group group-id="ChangesView.CommitToolbar" anchor="after" relative-to-action="Vcs.MessageActionGroup"/>
         </action>
+        <action
+            id="AiTerminalTools.ShowLastAiTurnDiff"
+            class="io.github.q110.aiterminaltools.monitor.ShowLastAiTurnDiffAction"
+            text="显示上次 AI Turn Diff"
+            description="重新打开最近一轮 AI 修改的 Diff 窗口"/>
     </actions>
 </idea-plugin>

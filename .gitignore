@@ -21,3 +21,5 @@ Thumbs.db
 
 # Local configuration (if any)
 local.properties
+/.reasonix/
+/.claude/

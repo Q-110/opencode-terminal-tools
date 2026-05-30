@@ -9,6 +9,7 @@ import com.intellij.openapi.application.ApplicationInfo
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.components.service
+import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Disposer
 import com.intellij.openapi.vfs.VirtualFile
@@ -17,12 +18,20 @@ import com.intellij.ui.content.Content
 import com.intellij.terminal.JBTerminalWidget
 import com.intellij.terminal.ui.TerminalWidget
 import io.github.q110.aiterminaltools.filter.displayPath
+import io.github.q110.aiterminaltools.monitor.AiTerminalTabContext
+import io.github.q110.aiterminaltools.monitor.AiTool
+import io.github.q110.aiterminaltools.monitor.AiTurnEventServer
+import io.github.q110.aiterminaltools.monitor.AiTurnHookInstaller
+import io.github.q110.aiterminaltools.monitor.AiTurnMonitorService
 import org.jetbrains.plugins.terminal.ShellStartupOptions
 import org.jetbrains.plugins.terminal.ShellTerminalWidget
 import org.jetbrains.plugins.terminal.TerminalToolWindowManager
 import java.io.IOException
+import java.nio.file.Path
+import java.security.SecureRandom
 import java.util.Collections
 import java.util.IdentityHashMap
+import java.util.UUID
 import java.util.concurrent.atomic.AtomicBoolean
 import javax.swing.Timer
 
@@ -38,6 +47,7 @@ class AiTerminalBridgeService(
     }
 
     private val legacyReworkedTerminalHelper = LegacyReworkedTerminalHelper(project)
+    private val log = Logger.getInstance(AiTerminalBridgeService::class.java)
     private val openCodeTerminalStartInProgress = AtomicBoolean(false)
     private val claudeCodeTerminalStartInProgress = AtomicBoolean(false)
     private val aiFrontendTerminals = Collections.newSetFromMap(IdentityHashMap<Any, Boolean>())
@@ -130,9 +140,47 @@ class AiTerminalBridgeService(
     }
 
     private fun scheduleClaudeCodeTerminalStart() {
+        // Claude Code：注入监控上下文，使用 launcher 脚本启动
+        val tabId = UUID.randomUUID().toString()
+        val token = generateSecureToken()
+
+        val port = try {
+            project.service<AiTurnEventServer>().ensureStarted()
+        } catch (exception: Throwable) {
+            log.error("Failed to start AiTurnEventServer", exception)
+            claudeCodeTerminalStartInProgress.set(false)
+            notify(project, "启动 AI Turn Event Server 失败：${exception.message}", NotificationType.WARNING)
+            return
+        }
+
+        val launcherCommand = try {
+            val installer = AiTurnHookInstaller(project)
+            val launcherPaths = installer.installClaudeHooks(tabId, token, port)
+            if (isWindows()) {
+                launcherPaths.cmdPath.toString()
+            } else {
+                launcherPaths.shPath.toString()
+            }
+        } catch (exception: Throwable) {
+            log.error("Failed to install Claude hooks", exception)
+            claudeCodeTerminalStartInProgress.set(false)
+            notify(project, "安装 Claude Code Hooks 失败：${exception.message}", NotificationType.WARNING)
+            return
+        }
+
+        val workingDirectory = terminalWorkingDirectory()
+        val tabContext = AiTerminalTabContext(
+            tabId = tabId,
+            token = token,
+            tool = AiTool.CLAUDE_CODE,
+            workingDirectory = Path.of(workingDirectory),
+            createdAtMillis = System.currentTimeMillis()
+        )
+        project.service<AiTurnMonitorService>().registerTab(tabContext)
+
         scheduleTerminalStart(
             tabName = nextTerminalTabName(CLAUDE_CODE_TAB_NAME),
-            command = CLAUDE_CODE_COMMAND,
+            command = launcherCommand,
             toolName = CLAUDE_CODE_TAB_NAME,
             inProgress = claudeCodeTerminalStartInProgress
         )
@@ -466,11 +514,20 @@ class AiTerminalBridgeService(
         }
     }
 
+    private fun generateSecureToken(): String {
+        val bytes = ByteArray(24)
+        SecureRandom().nextBytes(bytes)
+        return bytes.joinToString("") { "%02x".format(it) }
+    }
+
+    private fun isWindows(): Boolean {
+        return System.getProperty("os.name", "").lowercase().contains("win")
+    }
+
     companion object {
         private const val NOTIFICATION_GROUP_ID = "AI Terminal Tools"
         private const val OPEN_CODE_COMMAND = "opencode"
         private const val OPEN_CODE_TAB_NAME = "OpenCode"
-        private const val CLAUDE_CODE_COMMAND = "claude"
         private const val CLAUDE_CODE_TAB_NAME = "Claude Code"
         private const val NO_ACTIVE_TERMINAL_MESSAGE = "请先启动并激活 OpenCode 或 Claude Code 终端。"
         private const val LINE_END_SPACE = "\u0005 "

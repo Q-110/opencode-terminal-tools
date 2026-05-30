@@ -20,8 +20,10 @@ internal class FileChoiceDialog(
     private val project: Project,
     private val files: List<VirtualFile>
 ) : DialogWrapper(project) {
+    // 列表里显示相对/友好的路径，方便用户区分同名文件。
     private val list = JBList(files.map { displayPath(project, it) })
 
+    // 当前选中的条目对应的原始文件；如果没有有效选择则返回 null。
     val selectedFile: VirtualFile?
         get() = files.getOrNull(list.selectedIndex)
 
@@ -40,7 +42,7 @@ internal class FileChoiceDialog(
         return panel
     }
 
-    /** 弹窗大小取窗口/屏幕尺寸的 50% */
+    // 弹窗按当前窗口尺寸优先，其次退回到屏幕尺寸，避免过大或过小。
     private fun dialogSize(project: Project): Dimension {
         val windowSize = WindowManager.getInstance().getFrame(project)?.size
             ?: Toolkit.getDefaultToolkit().screenSize

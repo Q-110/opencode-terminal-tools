@@ -11,6 +11,7 @@ internal class FolderReferenceHyperlinkInfo(
     private val folder: VirtualFile
 ) : HyperlinkInfo {
     override fun navigate(project: Project) {
+        // 这里使用构造参数里的 project，确保跳转始终发生在创建链接时对应的项目里。
         ProjectView.getInstance(this.project).select(null, folder, true)
     }
 }
