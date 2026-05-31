@@ -6,6 +6,7 @@ import com.intellij.execution.filters.Filter
 import com.intellij.openapi.project.Project
 
 class AiTerminalToolsFilterProvider : ConsoleFilterProvider {
+    /** 每个项目创建独立 Filter，便于按项目索引解析文件路径 */
     override fun getDefaultFilters(project: Project): Array<Filter> {
         return arrayOf(AiTerminalToolsFilter(project))
     }

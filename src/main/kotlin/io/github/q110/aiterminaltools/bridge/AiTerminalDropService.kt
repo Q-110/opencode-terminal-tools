@@ -42,6 +42,7 @@ class AiTerminalDropService(
     private val classicCopyDisposables = mutableMapOf<Content, Disposable>()
     private var initialized = false
 
+    /** 监听终端工具窗口和内容切换，确保拖拽目标始终绑定到当前激活终端 */
     fun initialize() {
         if (initialized) {
             return
@@ -69,6 +70,7 @@ class AiTerminalDropService(
     }
 
     fun refreshDropTarget() {
+        // 只给当前激活内容安装拖拽/Classic 点击复制监听，避免旧 tab 残留监听器。
         val targetContent = currentActiveContent()
         val dropEnabled = targetContent != null && (dragToAiTerminalEnabled() || isRecordedAiTerminalContent(targetContent))
         val isClassic = targetContent != null && copyLinksEnabled() && isClassicContent(targetContent)
@@ -224,6 +226,7 @@ class AiTerminalDropService(
         Disposer.dispose(disposable)
     }
 
+    /** Classic 终端不能稳定显示复制链接样式，改用鼠标点击文本范围检测 */
     private fun installClassicCopyForContent(content: Content) {
         if (classicCopyDisposables.containsKey(content)) {
             return

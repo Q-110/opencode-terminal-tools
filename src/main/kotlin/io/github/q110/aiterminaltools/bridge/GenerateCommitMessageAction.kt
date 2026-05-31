@@ -1,3 +1,4 @@
+// 提交信息生成动作 — 根据 Commit 面板已勾选文件调用 OpenCode / Claude Code 生成提交文案
 package io.github.q110.aiterminaltools.bridge
 
 import com.intellij.icons.AllIcons
@@ -28,6 +29,7 @@ import java.util.concurrent.TimeUnit
 import java.util.UUID
 
 class GenerateCommitMessageAction : AnAction(AllIcons.Debugger.Console) {
+    /** Commit 面板工具栏动作需要在 EDT 根据勾选文件实时启用/禁用 */
     override fun getActionUpdateThread(): ActionUpdateThread {
         return ActionUpdateThread.EDT
     }
@@ -64,6 +66,7 @@ class GenerateCommitMessageAction : AnAction(AllIcons.Debugger.Console) {
         val settings = AiTerminalToolsSettings.getInstance().getState()
         val commitMessageAiTool = normalizedCommitMessageAiTool(settings.commitMessageAiTool)
         commitMessageUi.startLoading()
+        // AI CLI 调用和 git diff 收集都可能较慢，放到后台任务避免阻塞 Commit UI。
         GenerateCommitMessageTask(
             project,
             workflowUi,
@@ -85,6 +88,7 @@ class GenerateCommitMessageAction : AnAction(AllIcons.Debugger.Console) {
         ) == Messages.YES
     }
 
+    /** 后台任务负责收集变更、调用 AI CLI，并在 EDT 写回 Commit Message 输入框 */
     private class GenerateCommitMessageTask(
         project: Project,
         private val workflowUi: CommitWorkflowUi,
@@ -93,7 +97,7 @@ class GenerateCommitMessageAction : AnAction(AllIcons.Debugger.Console) {
         private val includedUnversionedFiles: List<FilePath>,
         private val commitMessageAiTool: String
     ) : Task.Backgroundable(project, commitMessageTaskTitle(commitMessageAiTool), true) {
-override fun run(indicator: ProgressIndicator) {
+        override fun run(indicator: ProgressIndicator) {
             try {
                 indicator.text = "Collecting selected changes"
                 val changeSummary = CommitChangeSummary(project, includedChanges, includedUnversionedFiles).build()
@@ -141,6 +145,7 @@ ModalityState.any()
         fun generate(indicator: ProgressIndicator): String
     }
 
+    /** 将 Commit 面板中真正勾选的文件整理成提示词上下文 */
     private class CommitChangeSummary(
         private val project: Project,
         private val includedChanges: List<Change>,
@@ -176,6 +181,7 @@ ModalityState.any()
         private fun computeDiffs(files: List<IncludedFile>): Map<String, String> {
             val diffs = linkedMapOf<String, String>()
             for (file in files) {
+                // 新增文件没有 git diff，直接读取文件内容；其他状态优先使用 git diff。
                 val content = when (file.status) {
                     "新增" -> readFileContent(file.absolutePath)
                     "删除" -> gitDiff(file.gitRoot, file.relativePath)
@@ -222,6 +228,7 @@ ModalityState.any()
                 ?: throw CommitMessageGenerationException("项目没有可用的工作目录。")
             val settings = AiTerminalToolsSettings.getInstance().getState()
             val fullPrompt = buildPrompt(changeSummary)
+            // OpenCode 的 agent 配置写入临时 XDG_CONFIG_HOME，避免污染用户全局配置。
             val configHome = createOpenCodeConfigHome(fullPrompt)
             val basePathPath = Path.of(basePath).toAbsolutePath().normalize()
             val sessionTitle = "Generate commit message ${UUID.randomUUID()}"
@@ -261,6 +268,7 @@ ModalityState.any()
                 }
                 return message
             } finally {
+                // opencode run 会创建临时 session，按标题和目录匹配后尽量清理。
                 deleteSessionQuietly(sessionTitle, basePathPath)
                 configHome.toFile().deleteRecursively()
             }
@@ -414,6 +422,7 @@ ClaudeCodeCommitMessageGenerator(project, changeSummary)
         }
 
         private fun cleanupOutput(output: String): String {
+            // 兼容 CLI 输出中的 ANSI 控制码、Markdown fence 和 Claude 引用前缀。
             val lines = output
                 .replace(ANSI_PATTERN, "")
                 .lineSequence()
@@ -485,6 +494,7 @@ ClaudeCodeCommitMessageGenerator(project, changeSummary)
                 throw CommitMessageGenerationException("无法启动命令 ${command.firstOrNull().orEmpty()}：${exception.message}")
             }
             try {
+                // 无 stdin 的命令要主动关闭输入流，避免子进程等待输入。
                 process.outputStream.close()
             } catch (_: Throwable) {
             }
@@ -582,6 +592,7 @@ ClaudeCodeCommitMessageGenerator(project, changeSummary)
         }
 
         private fun parseOpenCodeSessions(json: String): List<OpenCodeSession> {
+            // 不引入 JSON 库，按 OpenCode session list 的扁平对象输出做轻量解析。
             return Regex("""\{[^{}]*\}""")
                 .findAll(json)
                 .mapNotNull { match ->
@@ -648,6 +659,7 @@ ClaudeCodeCommitMessageGenerator(project, changeSummary)
         }
 
         private fun createOpenCodeConfigHome(fullPrompt: String): Path {
+            // 只开启模型生成所需能力，禁止读写/命令工具参与提交文案生成。
             val configHome = Files.createTempDirectory("opencode-commit-message-config")
             val configDir = configHome.resolve("opencode")
             Files.createDirectories(configDir)

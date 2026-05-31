@@ -22,6 +22,7 @@ import io.github.q110.aiterminaltools.monitor.AiTerminalTabContext
 import io.github.q110.aiterminaltools.monitor.AiTool
 import io.github.q110.aiterminaltools.monitor.AiTurnEventServer
 import io.github.q110.aiterminaltools.monitor.AiTurnHookInstaller
+import io.github.q110.aiterminaltools.monitor.AiTurnOpenCodeInstaller
 import io.github.q110.aiterminaltools.monitor.AiTurnMonitorService
 import org.jetbrains.plugins.terminal.ShellStartupOptions
 import org.jetbrains.plugins.terminal.ShellTerminalWidget
@@ -131,9 +132,47 @@ class AiTerminalBridgeService(
     }
 
     private fun scheduleOpenCodeTerminalStart() {
+        // OpenCode：注入监控上下文，使用 launcher 脚本启动
+        val tabId = UUID.randomUUID().toString()
+        val token = generateSecureToken()
+
+        val port = try {
+            project.service<AiTurnEventServer>().ensureStarted()
+        } catch (exception: Throwable) {
+            log.error("Failed to start AiTurnEventServer", exception)
+            openCodeTerminalStartInProgress.set(false)
+            notify(project, "启动 AI Turn Event Server 失败：${exception.message}", NotificationType.WARNING)
+            return
+        }
+
+        val launcherCommand = try {
+            val installer = AiTurnOpenCodeInstaller(project)
+            val launcherPaths = installer.installOpenCodePlugin(tabId, token, port)
+            if (isWindows()) {
+                launcherPaths.cmdPath.toString()
+            } else {
+                launcherPaths.shPath.toString()
+            }
+        } catch (exception: Throwable) {
+            log.error("Failed to install OpenCode plugin", exception)
+            openCodeTerminalStartInProgress.set(false)
+            notify(project, "安装 OpenCode Plugin 失败：${exception.message}", NotificationType.WARNING)
+            return
+        }
+
+        val workingDirectory = terminalWorkingDirectory()
+        val tabContext = AiTerminalTabContext(
+            tabId = tabId,
+            token = token,
+            tool = AiTool.OPENCODE,
+            workingDirectory = Path.of(workingDirectory),
+            createdAtMillis = System.currentTimeMillis()
+        )
+        project.service<AiTurnMonitorService>().registerTab(tabContext)
+
         scheduleTerminalStart(
             tabName = nextTerminalTabName(OPEN_CODE_TAB_NAME),
-            command = OPEN_CODE_COMMAND,
+            command = launcherCommand,
             toolName = OPEN_CODE_TAB_NAME,
             inProgress = openCodeTerminalStartInProgress
         )
@@ -206,7 +245,7 @@ class AiTerminalBridgeService(
                     try {
                         val workingDirectory = terminalWorkingDirectory()
                         val result = startFrontendTerminal(tabName, workingDirectory, command, toolName)
-                            ?: if (shouldSkipLegacyReworkedTerminal(command)) {
+                            ?: if (shouldSkipLegacyReworkedTerminal(toolName)) {
                                 startClassicTerminal(tabName, workingDirectory, command, toolName)
                             } else {
                                 startLegacyReworkedTerminal(tabName, workingDirectory, command, toolName)
@@ -226,8 +265,8 @@ class AiTerminalBridgeService(
         }
     }
 
-    private fun shouldSkipLegacyReworkedTerminal(command: String): Boolean {
-        return command == OPEN_CODE_COMMAND && ideBaselineVersion() in 251..252
+    private fun shouldSkipLegacyReworkedTerminal(toolName: String): Boolean {
+        return toolName == OPEN_CODE_TAB_NAME && ideBaselineVersion() in 251..252
     }
 
     private fun startFrontendTerminal(tabName: String, workingDirectory: String, command: String, toolName: String): BridgeResult? {
@@ -526,7 +565,6 @@ class AiTerminalBridgeService(
 
     companion object {
         private const val NOTIFICATION_GROUP_ID = "AI Terminal Tools"
-        private const val OPEN_CODE_COMMAND = "opencode"
         private const val OPEN_CODE_TAB_NAME = "OpenCode"
         private const val CLAUDE_CODE_TAB_NAME = "Claude Code"
         private const val NO_ACTIVE_TERMINAL_MESSAGE = "请先启动并激活 OpenCode 或 Claude Code 终端。"

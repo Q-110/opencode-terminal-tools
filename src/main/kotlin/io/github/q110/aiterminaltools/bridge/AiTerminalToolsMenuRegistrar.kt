@@ -10,6 +10,7 @@ import com.intellij.openapi.components.service
 import io.github.q110.aiterminaltools.console.AiConsoleErrorInlayService
 
 class AiTerminalToolsMenuRegistrar : StartupActivity, DumbAware {
+    /** 启动时初始化运行时服务，并把动态动作插入 IDE 菜单/工具栏 */
     override fun runActivity(project: com.intellij.openapi.project.Project) {
         project.service<AiConsoleErrorInlayService>().initialize()
         project.service<AiTerminalDropService>().initialize()
@@ -44,6 +45,7 @@ class AiTerminalToolsMenuRegistrar : StartupActivity, DumbAware {
         group.addAction(action, Constraints.LAST)
     }
 
+    /** 兼容新版 MainToolbarRight 和旧版 MainToolBar */
     private fun toolbarGroup(actionManager: ActionManager): DefaultActionGroup? {
         return actionManager.getAction("MainToolbarRight") as? DefaultActionGroup
             ?: actionManager.getAction("MainToolBar") as? DefaultActionGroup

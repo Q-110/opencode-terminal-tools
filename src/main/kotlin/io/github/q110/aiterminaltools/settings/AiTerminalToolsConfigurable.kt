@@ -1,3 +1,4 @@
+// 设置面板 — 提供终端链接、控制台发送、拖拽和提交信息生成选项
 package io.github.q110.aiterminaltools.settings
 
 import com.intellij.openapi.options.Configurable
@@ -35,6 +36,7 @@ class AiTerminalToolsConfigurable : Configurable {
     }
 
     override fun createComponent(): JComponent {
+        // Commit message 模型按 AI 工具分别保存，切换下拉框时需要先保存当前输入。
         val fileLinksCheckBox = JBCheckBox("启用文件跳转")
         val copyLinksCheckBox = JBCheckBox("启用点击复制")
         val errorToAiTerminalIconsCheckBox = JBCheckBox("启用控制台错误发送图标")
@@ -174,6 +176,7 @@ class AiTerminalToolsConfigurable : Configurable {
             commitMessageAdditionalPromptArea?.text?.trim() != settings.commitMessageAdditionalPrompt
     }
 
+    /** 将当前 UI 状态写回持久化配置 */
     override fun apply() {
         saveCurrentCommitMessageModel()
         val settings = AiTerminalToolsSettings.getInstance().getState()
@@ -188,6 +191,7 @@ class AiTerminalToolsConfigurable : Configurable {
         settings.commitMessageAdditionalPrompt = commitMessageAdditionalPromptArea?.text?.trim().orEmpty()
     }
 
+    /** 从持久化配置恢复 UI，同时避免触发模型切换时的二次写入 */
     override fun reset() {
         val settings = AiTerminalToolsSettings.getInstance().getState()
         fileLinksCheckBox?.isSelected = settings.fileLinksEnabled
@@ -226,6 +230,7 @@ class AiTerminalToolsConfigurable : Configurable {
         }
     }
 
+    /** 根据当前选择的 AI 工具展示对应模型占位说明和值 */
     private fun updateCommitMessageModelUi() {
         if (selectedCommitMessageAiTool == COMMIT_MESSAGE_AI_TOOL_CLAUDE) {
             commitMessageModelField?.text = claudeCommitMessageModel

@@ -1,3 +1,4 @@
+// 旧版 Reworked Terminal 兼容层 — 通过反射适配 2025.1/2025.2 终端 API
 package io.github.q110.aiterminaltools.bridge
 
 import com.intellij.notification.NotificationType
@@ -15,6 +16,7 @@ import javax.swing.Timer
 class LegacyReworkedTerminalHelper(
     private val project: Project
 ) {
+    /** 优先尝试 Reworked 引擎，避免误拿到 Classic 终端实现 */
     fun createAiTerminal(tabName: String, workingDirectory: String): TerminalWidget? {
         val manager = TerminalToolWindowManager.getInstance(project)
         val toolWindow = manager.toolWindow ?: return null
@@ -72,6 +74,7 @@ class LegacyReworkedTerminalHelper(
         return AiTerminalBridgeService.BridgeResult.Scheduled
     }
 
+    /** 新旧 Reworked API 对初始化尺寸的暴露不同，反射失败时直接发送命令 */
     private fun terminalSizeInitializedFuture(widget: TerminalWidget): CompletableFuture<*>? {
         return try {
             widget.javaClass.getMethod("getTerminalSizeInitializedFuture").invoke(widget) as? CompletableFuture<*>

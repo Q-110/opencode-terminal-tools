@@ -1,4 +1,4 @@
-// Turn 状态机 — 按 tabId 维护每个终端的当前轮次
+// Turn 状态机 — 按终端 tab 和上游 session 维护每轮 AI 文件修改
 package io.github.q110.aiterminaltools.monitor
 
 import com.intellij.openapi.components.Service
@@ -17,19 +17,15 @@ class AiTurnMonitorService(
 ) {
     private val log = Logger.getInstance(AiTurnMonitorService::class.java)
 
-    /** tabId → 已注册的终端上下文 */
     private val tabs = ConcurrentHashMap<String, AiTerminalTabContext>()
-
-    /** tabId → 当前活跃的 turn */
     private val turns = ConcurrentHashMap<String, AiTurnState>()
 
-    /** 注册新的 AI 终端 tab */
+    /** 注册由插件启动的 AI 终端，后续 HTTP 事件必须匹配 tabId/token */
     fun registerTab(context: AiTerminalTabContext) {
         tabs[context.tabId] = context
         log.info("Registered AI terminal tab: ${context.tabId} (${context.tool})")
     }
 
-    /** 注销 AI 终端 tab，同时清理关联的 turn */
     fun unregisterTab(tabId: String) {
         tabs.remove(tabId)
         val turn = turns.remove(tabId)
@@ -39,12 +35,12 @@ class AiTurnMonitorService(
         }
     }
 
-    /** 获取所有活跃 turn（VFS 兜底监听用，第三阶段） */
+    /** 供后续 VFS 兜底监听读取当前活跃 turn */
     fun activeTurns(): List<AiTurnState> {
         return turns.values.toList()
     }
 
-    /** 处理从 HTTP endpoint 接收到的事件 */
+    /** 处理 Claude hooks / OpenCode plugin 发回的标准化事件 */
     fun handle(event: AiTurnEvent) {
         val tab = tabs[event.tabId]
         if (tab == null) {
@@ -61,16 +57,27 @@ class AiTurnMonitorService(
             AiTurnEventType.TURN_START -> startTurn(tab, event)
             AiTurnEventType.BEFORE_WRITE -> beforeWrite(tab, event)
             AiTurnEventType.FILE_CHANGED -> fileChanged(tab, event)
-            AiTurnEventType.TURN_END -> finishTurn(tab, failed = false)
-            AiTurnEventType.TURN_END_FAILED -> finishTurn(tab, failed = true)
+            AiTurnEventType.TURN_END -> finishTurn(tab, event, failed = false)
+            AiTurnEventType.TURN_END_FAILED -> finishTurn(tab, event, failed = true)
         }
     }
 
     private fun startTurn(tab: AiTerminalTabContext, event: AiTurnEvent) {
-        // 如已有未结束 turn，先完成上一轮
         val existing = turns[tab.tabId]
         if (existing != null) {
+            if (tab.tool == AiTool.OPENCODE && attachOpenCodeSessionIfMissing(tab, existing, event)) {
+                return
+            }
+
+            // 同一个 OpenCode session 可能重复发送 busy，不能因此提前结束当前 turn。
+            if (isSameKnownOpenCodeSession(tab, existing, event)) {
+                log.debug("Duplicate turn_start for OpenCode tab ${tab.tabId}, turn ${existing.turnId} continues")
+                return
+            }
+
+            // Claude 正常应由 Stop 结束；若新一轮开始前上一轮未结束，先收尾上一轮。
             log.info("Previous turn ${existing.turnId} for tab ${tab.tabId} not finished, auto-finishing")
+            turns.remove(tab.tabId, existing)
             if (existing.changedFiles.isNotEmpty()) {
                 refreshAndShowDiff(existing)
             }
@@ -85,55 +92,143 @@ class AiTurnMonitorService(
             cwd = tab.workingDirectory,
             upstreamSessionId = event.sessionId
         )
-        log.info("Started turn $turnId for tab ${tab.tabId}")
+        log.info("Started turn $turnId for tab ${tab.tabId}, session=${event.sessionId}")
     }
 
     private fun beforeWrite(tab: AiTerminalTabContext, event: AiTurnEvent) {
-        val turn = turns[tab.tabId]
-        if (turn == null) {
-            log.debug("before_write received but no active turn for tab ${tab.tabId}, auto-starting turn")
-            startTurn(tab, event)
-            val newTurn = turns[tab.tabId] ?: return
-            captureSnapshots(newTurn, event.paths)
-            return
-        }
+        val turn = turnForWriteEvent(tab, event) ?: return
         captureSnapshots(turn, event.paths)
     }
 
     private fun fileChanged(tab: AiTerminalTabContext, event: AiTurnEvent) {
-        val turn = turns[tab.tabId]
-        if (turn == null) {
-            log.debug("file_changed received but no active turn for tab ${tab.tabId}")
-            return
+        val turn = turnForWriteEvent(tab, event) ?: return
+        markChangedPaths(turn, event)
+    }
+
+    private fun turnForWriteEvent(tab: AiTerminalTabContext, event: AiTurnEvent): AiTurnState? {
+        val existing = turns[tab.tabId]
+        if (existing == null) {
+            log.debug("${event.type} received but no active turn for tab ${tab.tabId}, auto-starting turn")
+            startTurn(tab, event)
+            return turns[tab.tabId]
         }
-        // 优先使用 hook 脚本提取的路径；如果为空（如 PostToolUse 不含 file_path），
-        // 回退到已保存快照的路径集合。
+
+        if (isDifferentKnownOpenCodeSession(tab, existing, event)) {
+            // 旧 session 的迟到文件事件不能污染当前 session 的 Diff。
+            log.debug(
+                "Ignoring ${event.type} for OpenCode session ${event.sessionId}; " +
+                    "active turn ${existing.turnId} belongs to ${existing.upstreamSessionId}"
+            )
+            return null
+        }
+
+        if (tab.tool == AiTool.OPENCODE && attachOpenCodeSessionIfMissing(tab, existing, event)) {
+            return turns[tab.tabId]
+        }
+
+        return existing
+    }
+
+    private fun attachOpenCodeSessionIfMissing(
+        tab: AiTerminalTabContext,
+        turn: AiTurnState,
+        event: AiTurnEvent
+    ): Boolean {
+        if (tab.tool != AiTool.OPENCODE) return false
+        val eventSessionId = event.sessionId
+        if (turn.upstreamSessionId.isNullOrBlank() && !eventSessionId.isNullOrBlank()) {
+            // file_changed/before_write 可能先于 busy 到达，此时用写入事件补齐 sessionID。
+            turns[tab.tabId] = turn.copy(upstreamSessionId = eventSessionId)
+            log.debug("Attached OpenCode session $eventSessionId to turn ${turn.turnId}")
+            return true
+        }
+        return false
+    }
+
+    private fun isSameKnownOpenCodeSession(
+        tab: AiTerminalTabContext,
+        turn: AiTurnState,
+        event: AiTurnEvent
+    ): Boolean {
+        return tab.tool == AiTool.OPENCODE &&
+            !turn.upstreamSessionId.isNullOrBlank() &&
+            turn.upstreamSessionId == event.sessionId
+    }
+
+    private fun isDifferentKnownOpenCodeSession(
+        tab: AiTerminalTabContext,
+        turn: AiTurnState,
+        event: AiTurnEvent
+    ): Boolean {
+        return tab.tool == AiTool.OPENCODE &&
+            !turn.upstreamSessionId.isNullOrBlank() &&
+            !event.sessionId.isNullOrBlank() &&
+            turn.upstreamSessionId != event.sessionId
+    }
+
+    private fun markChangedPaths(turn: AiTurnState, event: AiTurnEvent) {
+        // 有明确路径时使用事件路径；否则回退到本轮已保存快照的路径集合。
         val paths = if (event.paths.isNotEmpty()) {
             event.paths.mapNotNull { normalizePath(turn.cwd, it) }
         } else {
             turn.beforeSnapshots.keys.toList()
         }
+
+        val missingSnapshots = paths.filter { it !in turn.beforeSnapshots }
+        if (missingSnapshots.isNotEmpty()) {
+            log.warn(
+                "file_changed for ${missingSnapshots.size} path(s) without before_snapshot: " +
+                    missingSnapshots.joinToString { it.fileName?.toString() ?: it.toString() }
+            )
+        }
+
         for (path in paths) {
             turn.changedFiles.add(path)
         }
     }
 
-    private fun finishTurn(tab: AiTerminalTabContext, failed: Boolean) {
-        val turn = turns.remove(tab.tabId)
+    private fun finishTurn(tab: AiTerminalTabContext, event: AiTurnEvent, failed: Boolean) {
+        val turn = turns[tab.tabId]
         if (turn == null) {
             log.debug("turn_end received but no active turn for tab ${tab.tabId}")
             return
         }
 
-        log.info("Finishing turn ${turn.turnId} for tab ${tab.tabId}, " +
-            "changed files: ${turn.changedFiles.size}, failed: $failed")
+        if (tab.tool == AiTool.OPENCODE && !canFinishOpenCodeTurn(turn, event)) {
+            // session.idle 迟到时不能结束后续 session 的活跃 turn。
+            log.debug(
+                "Ignoring turn_end for OpenCode session ${event.sessionId}; " +
+                    "active turn ${turn.turnId} belongs to ${turn.upstreamSessionId}"
+            )
+            return
+        }
+
+        if (!turns.remove(tab.tabId, turn)) {
+            log.debug("Turn ${turn.turnId} was already finished for tab ${tab.tabId}")
+            return
+        }
+
+        log.info(
+            "Finishing turn ${turn.turnId} for tab ${tab.tabId}, " +
+                "changed files: ${turn.changedFiles.size}, failed: $failed"
+        )
 
         if (turn.changedFiles.isEmpty()) {
-            // 不弹 Diff，静默处理
             return
         }
 
         refreshAndShowDiff(turn)
+    }
+
+    private fun canFinishOpenCodeTurn(turn: AiTurnState, event: AiTurnEvent): Boolean {
+        val eventSessionId = event.sessionId
+        if (eventSessionId.isNullOrBlank()) {
+            log.warn("OpenCode turn_end without sessionID ignored for turn ${turn.turnId}")
+            return false
+        }
+
+        val turnSessionId = turn.upstreamSessionId
+        return turnSessionId.isNullOrBlank() || turnSessionId == eventSessionId
     }
 
     private fun captureSnapshots(turn: AiTurnState, rawPaths: List<String>) {
@@ -145,8 +240,8 @@ class AiTurnMonitorService(
     }
 
     private fun refreshAndShowDiff(turn: AiTurnState) {
-        // 先刷新文件系统，确保 IDEA 看到最新内容
         try {
+            // 外部 CLI 修改文件后，先刷新 VFS，确保 Diff 读取到最新内容。
             val files = turn.changedFiles.map { it.toFile() }
             LocalFileSystem.getInstance().refreshIoFiles(files, false, true, null)
         } catch (exception: Throwable) {
@@ -156,13 +251,6 @@ class AiTurnMonitorService(
         project.service<AiTurnDiffPresenter>().showDiff(turn)
     }
 
-    /**
-     * 将原始路径标准化为绝对路径，并进行安全校验。
-     * - 支持相对路径和绝对路径
-     * - 支持 `\` 和 `/` 混用
-     * - 禁止越出 project base path
-     * - 忽略黑名单目录中的文件
-     */
     internal fun normalizePath(cwd: Path, raw: String): Path? {
         val cleaned = raw.trim()
             .removePrefix("@")
@@ -180,14 +268,13 @@ class AiTurnMonitorService(
         val absolute = if (path.isAbsolute) path else cwd.resolve(path)
         val normalized = absolute.normalize()
 
-        // 安全检查：禁止越出 project base path
+        // 事件只允许引用项目内文件，避免本地 HTTP 事件读取项目外路径。
         val projectBase = project.basePath?.let { Path.of(it).normalize() } ?: return null
         if (!normalized.startsWith(projectBase)) {
             log.debug("Path $normalized is outside project base $projectBase, ignoring")
             return null
         }
 
-        // 检查忽略目录
         val relativePath = projectBase.relativize(normalized).toString()
         for (ignored in IGNORED_DIRECTORIES) {
             if (relativePath.startsWith("$ignored/") || relativePath.startsWith("$ignored${File.separator}")) {

@@ -7,6 +7,7 @@ import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.components.service
 
 class ShowLastAiTurnDiffAction : AnAction() {
+    /** 该菜单动作只根据项目内最近一次 Diff 状态启用 */
     override fun getActionUpdateThread(): ActionUpdateThread {
         return ActionUpdateThread.EDT
     }

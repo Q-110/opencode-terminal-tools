@@ -1,3 +1,4 @@
+// 控制台错误 Inlay 服务 — 在错误首行旁显示发送到 AI Terminal 的图标
 package io.github.q110.aiterminaltools.console
 
 import com.intellij.ide.DataManager
@@ -42,6 +43,7 @@ class AiConsoleErrorInlayService(
     private var previousToolTipText: String? = null
 
     init {
+        // 控制台输出持续追加，文档变化时延迟重扫以合并同一批输出。
         editorFactory.eventMulticaster.addDocumentListener(object : DocumentListener {
             override fun documentChanged(event: DocumentEvent) {
                 scheduleRescan(event.document)
@@ -65,6 +67,7 @@ class AiConsoleErrorInlayService(
         }, this)
     }
 
+    /** 项目启动后补扫已经存在的控制台编辑器 */
     fun initialize() {
         editorFactory.allEditors
             .filter { isProjectConsoleEditor(it) }
@@ -83,6 +86,7 @@ class AiConsoleErrorInlayService(
         }
     }
 
+    /** 根据解析出的错误块增删 inlay，避免同一行重复创建图标 */
     private fun rescan(document: Document) {
         val editors = projectConsoleEditors(document)
         if (editors.isEmpty()) {
@@ -129,6 +133,7 @@ class AiConsoleErrorInlayService(
         }
     }
 
+    /** 点击图标时只发送当前错误块文本，而不是整个控制台输出 */
     private fun sendErrorToAiTerminal(editor: Editor, rangeMarker: RangeMarker) {
         if (!rangeMarker.isValid) {
             AiTerminalBridgeService.notify(project, "The console error is no longer available.", NotificationType.WARNING)

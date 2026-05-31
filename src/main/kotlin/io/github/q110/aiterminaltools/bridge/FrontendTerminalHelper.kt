@@ -1,3 +1,4 @@
+// Frontend Terminal 兼容层 — 通过反射适配 IDE 2025.3+ 新终端 API
 package io.github.q110.aiterminaltools.bridge
 
 import com.intellij.notification.NotificationType
@@ -19,6 +20,7 @@ class FrontendTerminalHelper(
         .getMethod("getInstance", Project::class.java)
         .invoke(null, project)
 
+    /** 当前选中的终端 Content 需要反查到 frontend tab 对象才能写入输入区 */
     fun selectedTerminal(): Any? {
         val selectedContent = ToolWindowManager.getInstance(project)
             .getToolWindow(TERMINAL_TOOL_WINDOW_ID)
@@ -42,6 +44,7 @@ class FrontendTerminalHelper(
         return tabBuilderMethod("createTab").invoke(builder)
     }
 
+    /** 在前端终端获得焦点后执行命令，避免命令写入到旧焦点组件 */
     fun runCommand(
         tab: Any,
         command: String,
@@ -92,6 +95,7 @@ class FrontendTerminalHelper(
         return contentOf(tab) == content
     }
 
+    /** 直接写入输入区，settleAtLineEnd 用于结束 @path 补全状态 */
     fun injectDirectInput(tab: Any, payload: String, settleAtLineEnd: Boolean): BridgeResult {
         val content = contentOf(tab)
             ?: return BridgeResult.Error("Invalid frontend terminal tab.")
@@ -207,6 +211,7 @@ class FrontendTerminalHelper(
         return view.javaClass.getMethod("getPreferredFocusableComponent").invoke(view) as? JComponent
     }
 
+    /** Frontend Terminal API 仍在变化，所有调用点集中通过反射兜底 */
     private fun tabsManagerMethod(name: String, vararg parameterTypes: Class<*>?): java.lang.reflect.Method {
         return tabsManagerClass.getMethod(name, *parameterTypes)
     }
